@@ -2,13 +2,17 @@
 
 ```
 src/
-  config/balance.ts     wszystkie liczby rozgrywki (bohater, unik, skill, wrogowie, fale)
+  config/               balance (wspólne + wrogowie), heroes, skills, upgrades, progression, dungeon
   core/                 math, seeded RNG (mulberry32), projekcja izometryczna
-  world/                mapa kafli (parser ASCII), kolizje koło–siatka, linia wzroku, flow field
-  sim/                  SYMULACJA: Simulation, targeting, formuła obrażeń, typy i zdarzenia
-  render/               Phaser: tekstury proceduralne, widok świata, rigi postaci, FX, telegrafy
+  world/                mapa kafli, generator podziemi + walidacja, kolizje, linia wzroku, flow field
+  sim/                  SYMULACJA: Simulation (walka, pociski, strefy, łupy, XP), director (komnaty, drzwi,
+                        fale, nagrody, schody), stats (jedna formuła statystyk), targeting, damage
+  meta/save.ts          zapis IndexedDB: wersja, walidacja, kopia, Sanktuarium, bilans wyprawy
+  render/               Phaser: tekstury proceduralne, widok piętra z mgłą, rigi postaci, pociski/łupy/obiekty,
+                        FX, telegrafy
   input/controls.ts     joystick dotykowy, przyciski, klawiatura (DOM pointer/keyboard events)
-  ui/hud.ts             HUD i ekrany (DOM): HP, fala, cooldowny, tytuł, pauza, śmierć
+  ui/                   hud (HP, XP, popiół, cooldowny), menus (wybór postaci/umiejętności, ulepszenia,
+                        pauza z kartą statystyk, Sanktuarium, podsumowanie), minimap
   audio/sfx.ts          syntezowane SFX (Web Audio), głośność, wyciszenie
   scenes/               BootScene (tekstury) → GameScene (pętla, zdarzenia → efekty)
   pwa/register.ts       rejestracja service workera (tylko build produkcyjny)
@@ -54,10 +58,9 @@ GameScene.update(dt) ── akumulator ── sim.step(1/60) × N ────�
 - **UI w DOM**: ostry tekst, prawdziwe przyciski, `env(safe-area-inset-*)`. Phaser ma wyłączony input.
 
 ## Testy
-- `tests/world.test.ts` — parser, osiągalność kafli, kolizje, poślizg, tunelowanie, LOS, projekcja.
-- `tests/targeting.test.ts` — reguły wyboru celu, auto-atak, zmiana celu po śmierci, brak ataku przez ścianę, interwał.
-- `tests/combat.test.ts` — formuła obrażeń, unik (dystans, cooldown, bufor, i-frames, ściany), telegrafy,
-  ominięcie koksownika, Rozłam (przerwanie, cooldown, zakazy w uniku/po śmierci), śmierć, fale, determinizm.
-- `tests/design.test.ts` — boty: bierny vs aktywny gracz (gwarancja, że stanie w miejscu przegrywa).
-- `e2e/smoke.spec.ts` — start, ruch (klawiatura / przeciągnięcie joysticka), unik, skill, pauza (czas stoi), śmierć,
-  restart, brak błędów konsoli; pauza po ukryciu karty; blokady przewijania/zaznaczania.
+- `tests/world`, `targeting`, `combat` — rdzeń walki, kolizje, LOS, unik, umiejętności, determinizm.
+- `tests/dungeon` — 180 wygenerowanych pięter bez błędów walidacji, determinizm seeda, reżyser (drzwi, fale, skrzynie, kapliczki, schody).
+- `tests/progression` — statystyki, XP/poziomy/wybory, limity stosów, łupy, pociski, Szarża/Salwa/Pieczęć, płynność ruchu, zapis.
+- `tests/design`, `tests/run` — boty: bierny vs aktywny na arenie i w całej wyprawie, dla obu klas.
+- `e2e/smoke.spec.ts` — pełny przebieg w przeglądarce (desktop, telefon pion i poziom): wybór, walka, ulepszenie,
+  pauza, schody, śmierć, Sanktuarium, zapis po odświeżeniu, dźwięk aktywny, brak błędów konsoli.

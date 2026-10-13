@@ -48,3 +48,26 @@ i nie zależy od zewnętrznej usługi. Gotyckie cyfry rzymskie okazały się nie
 ## D11 — Wrogowie czekający na cooldown dociskają do kontaktu
 Wykryte botem: Kolos krążył na 1.58 kafla, tuż poza zasięgiem miecza (1.45), więc był nietykalny między
 atakami. Teraz krąży na odległości kontaktu ciał + 0.35 — czekanie wroga jest oknem kontry dla gracza.
+
+## D12 — Dungeon crawler przed bossem (2026-10-13)
+Właściciel zgłosił, że gra miała być dungeon crawlerem, a nie areną z falami. Kolejność etapów zmieniona:
+podziemia, klasy, ulepszenia i trwały postęp weszły razem; boss przesunięty na następny etap.
+Tryb fal został tylko jako uprząż testowa dla botów (`tests/helpers.ts`).
+
+## D13 — Jedna mapa na piętro, komnaty odsłaniane mgłą
+Całe piętro to jedna siatka kafli (64×64), a nie osobne sceny na komnatę: ciągła eksploracja, wspólna fizyka,
+proste przejścia. Widoczność per region (komnata/korytarz). Drzwi to kafle, które reżyser zamienia
+(Floor ↔ Door) i unieważnia flow field.
+
+## D14 — Wyrównanie prędkości w izometrii
+W rzucie 2:1 stała prędkość w świecie wygląda na ekranie 2× szybciej w bok niż w pionie. Ruch skalowany
+`(długość na ekranie)^-0.7` — kompromis między fizyką świata a odczuciem. Te same współczynniki dla wrogów,
+więc pościgi są uczciwe. Zasięgi ataków pozostają w jednostkach świata.
+
+## D15 — Zwykłe trafienia bez hit-stopu
+Hit-stop przy każdym auto-ataku (co ~0,7 s) zatrzymywał też chód bohatera — gracz odbierał to jako
+nierówną prędkość. Zamrożenie zostało tylko dla krytyków (40 ms) i umiejętności (70 ms).
+
+## D16 — Obiekt pod stopami uzbraja się po zejściu z niego
+Schody/skrzynia pojawiające się dokładnie tam, gdzie stoi bohater, działały natychmiast (np. przeniesienie
+na kolejne piętro bez zebrania łupu). Teraz trzeba zejść i wejść ponownie.

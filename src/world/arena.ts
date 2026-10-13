@@ -7,6 +7,8 @@ export const Tile = {
   Wall: 1,
   Pillar: 2,
   Brazier: 3,
+  /** A closed door. Opened doors are turned back into Floor. */
+  Door: 4,
 } as const;
 export type Tile = (typeof Tile)[keyof typeof Tile];
 
@@ -19,6 +21,7 @@ export interface Decor {
 }
 
 export interface ArenaMap {
+  /** Tile contents are mutable (doors open and close); the array itself is fixed. */
   readonly w: number;
   readonly h: number;
   readonly tiles: Uint8Array;
@@ -38,7 +41,7 @@ export function blocksMove(t: Tile): boolean {
 
 /** Braziers are waist-high: they stop bodies but not sight or attacks. */
 export function blocksSight(t: Tile): boolean {
-  return t === Tile.Wall || t === Tile.Pillar;
+  return t === Tile.Wall || t === Tile.Pillar || t === Tile.Door;
 }
 
 export function isWalkable(map: ArenaMap, tx: number, ty: number): boolean {

@@ -1,77 +1,74 @@
 # ABYSS: The Hollow Crown — Game Design
 
 ## Filar
-**Auto-atak ≠ auto-gra.** Bohater sam uderza najbliższy cel w zasięgu, ale wygrywa ten, kto:
-ustawia się dobrze, czyta telegrafy, unika w odpowiednim momencie, zarządza cooldownami
-i wybiera moment na umiejętność. Stanie w miejscu musi przegrywać — pilnuje tego test
-`tests/design.test.ts` (bot bierny vs bot grający).
+**Auto-atak ≠ auto-gra.** Bohater sam uderza najbliższy cel w zasięgu, ale wygrywa ten, kto ustawia
+się dobrze, czyta telegrafy, unika w odpowiednim momencie, zarządza cooldownami i wybiera moment na
+umiejętność. Pilnują tego boty w testach: `tests/design.test.ts` (fale na arenie) i `tests/run.test.ts`
+(cała wyprawa przez 3 piętra) — gracz stojący w miejscu musi wyraźnie przegrywać z grającym.
 
 ## Świat i ton
-Upadłe królestwo, ruiny pod powierzchnią, pusta korona. Korona od stu lat nie ma właściciela;
-coś na dnie Otchłani „wydrążyło” ludzi i ciągnie ich ku górze. Historia z otoczenia, krótkich
-dialogów i opisów przedmiotów — nie z długich tekstów.
+Upadłe królestwo, ruiny pod powierzchnią, pusta korona. Pod ruinami ciągną się podziemia; coś na ich
+dnie „wydrąża” ludzi i ciągnie ich ku górze. Historia z otoczenia i krótkich tekstów, nie z długich dialogów.
 
-**Język wizualny (obowiązuje w całej grze):**
-- kamień zimny i ciemny (`stone0–5`), kość/popiół na neutralne elementy czytelne,
-- **ember (pomarańcz)** = bohater, jego światło, jego ataki, nagrody,
-- **hollow (turkus)** = zepsucie, oczy i rany wrogów, dusze,
-- **czerwień** = wyłącznie zagrożenie (telegrafy ataków, HP bohatera).
-Fonty: Grenze Gotisch (tytuły, banery), Alegreya Sans (HUD, liczby — tabularne).
+**Język wizualny:** zimny kamień, kość/popiół na neutralne elementy, **ember (pomarańcz)** = bohater, jego
+światło, ataki, nagrody; **hollow (turkus)** = zepsucie, oczy i rany wrogów, dusze; **czerwień** = wyłącznie
+zagrożenie (telegrafy, pociski wrogów, kraty zamkniętych drzwi, HP). Fonty: Grenze Gotisch (tytuły),
+Alegreya Sans (UI, cyfry tabularne).
 
-## Pętla docelowa
-Baza → wybór bohatera/wyposażenia → proceduralny loch (pomieszczenia) → walka, nagrody,
-wybory buildu → boss albo śmierć → powrót do bazy z trwałymi zasobami → odblokowania → kolejna wyprawa.
-Na Etapie 1 istnieje tylko arena z falami (rdzeń walki).
+## Pętla (zaimplementowana)
+1. **Menu** → Nowa wyprawa → **wybór bohatera** (2 klasy) → **wybór umiejętności** (2 na klasę).
+2. **Proceduralne podziemia**: 3 piętra, każde to 7–9 komnat połączonych korytarzami, odkrywanych w trakcie
+   eksploracji (mgła + minimapa izometryczna).
+3. Wejście do komnaty walki **zamyka kraty**; 1–3 fale wrogów; po oczyszczeniu kraty się otwierają,
+   wypada popiół, bohater odzyskuje 12% zdrowia.
+4. **XP** z wrogów → nowy poziom → **wybór 1 z 3 ulepszeń**. **Skrzynie** (skarbiec, legowisko elity) też dają
+   wybór 1 z 3, częściej rzadkie dary. **Kapliczka** leczy 50% raz na piętro.
+5. **Strażnica schodów** (najgłębsza komnata) ma najtrudniejsze spotkanie; po nim schody prowadzą niżej.
+   Po 3. piętrze — wyjście na powierzchnię = zwycięstwo.
+6. Śmierć: zachowujesz 60% popiołu. Zwycięstwo: 100% + 40 premii.
+7. **Sanktuarium**: popiół → stałe rangi statystyk (działają na obu bohaterów). Zapis w IndexedDB.
 
-## Walka — stan zaimplementowany (Etap 1)
-
-### Bohater: Strażnik Popiołu (wojownik)
-| Parametr | Wartość |
-|---|---|
-| HP | 100 |
-| Obrażenia | 14 (krytyk 12% ×1.8) |
-| Atak | co 0.72 s, wind-up 0.11 s, zasięg 1.45 kafla, **cleave** 50% w łuku 80° |
-| Ruch | 4.2 kafla/s |
-| Unik | 2.7 kafla w 0.3 s, nietykalność 0.24 s, cooldown 1.05 s, bufor wciśnięcia 0.15 s |
-| Po trafieniu | 0.45 s litości (nie da się dostać dwa razy z rzędu) |
-
-**Targeting (stabilny):** najbliższy cel w zasięgu + 0.35, z linią wzroku. Aktualny cel trzymany do
-zasięgu + 0.9; zmiana tylko gdy inny jest wyraźnie bliżej (×0.6) i minęło 0.5 s, albo gdy aktualny
-wyszedł z zasięgu, a inny jest w zasięgu. Marker: pomarańczowy pierścień + strzałka nad głową
-(przygaszony, gdy cel jest poza zasięgiem uderzenia).
-
-**Umiejętność: Rozłam.** 0.28 s zamachu (bohater stoi — to zobowiązanie), potem uderzenie w promieniu
-2.4: 260% obrażeń, odrzut, ogłuszenie 1.1 s, **przerywa wind-upy wrogów**. Cooldown 7.5 s.
-Decyzja: użyć teraz na tłum, czy zachować na przerwanie ciosu Kolosa?
-
-Unik anuluje zamach ataku, ale zwraca większość cooldownu ataku — unikanie nie karze DPS-u.
-Hit-stop 35–80 ms, błysk trafionego, odrzut, iskry, liczby obrażeń, wstrząs kamery przy krytyku/Rozłamie.
-
-### Przeciwnicy
-| | Wydrążony (thrall) | Popielny Kolos (brute) |
+## Bohaterowie
+| | Strażnik Popiołu | Wędrowiec Otchłani |
 |---|---|---|
-| Rola | szybki, kruchy, otacza | wolny, opancerzony, karze błędy |
-| HP / prędkość | 42 / 2.6 | 170 / 1.55 |
-| Atak | stożek 100°, r 1.6, 10 dmg | koło r 1.2 przed sobą, 28 dmg |
-| Wind-up / odpoczynek | 0.6 s / 0.6 s | 1.0 s / 1.1 s |
-| Cooldown | 1.8 s | 2.6 s |
-| Specjalne | drga od trafień | nie drga (poise), ogłuszenie skrócone |
+| Styl | zwarcie, cięcie wielu wrogów | dystans, odłamki, kitowanie |
+| HP / pancerz | 120 / 10% | 95 / 0% |
+| Atak | 14 co 0,72 s, zasięg 1,45, cleave 50% w 80° | odłamek 11 co 0,52 s, zasięg 4,6 |
+| Ruch | 4,0 | 4,5 |
+| Unik | 2,6 kafla, cd 1,1 s | 3,1 kafla, cd 0,9 s |
+| Umiejętności | **Rozłam** (AoE wokół, odrzut, ogłuszenie, przerywa ataki) · **Szarża** (taran na linii, nietykalność) | **Salwa Odłamków** (wachlarz 7 przebijających odłamków) · **Pieczęć Pustki** (strefa: −50% prędkości wrogów + obrażenia przez 4 s) |
 
-Celowanie wroga śledzi bohatera przez pierwsze 30–35% wind-upu, potem się blokuje — dlatego
-unik w bok w drugiej połowie telegrafu działa. Lekkie ciosy bohatera **nie** przerywają wind-upu
-(trzeba uniknąć albo użyć Rozłamu). Po ciosie wróg ma fazę odpoczynku (szary, przygarbiony) — okno kontry.
-Wrogowie podchodzą z różnych stron (indywidualny kąt flankowania), omijają przeszkody flow fieldem,
-a czekając na cooldown krążą przy bohaterze w jego zasięgu.
+## Statystyki (karta postaci w pauzie / klawisz C)
+Zdrowie, obrażenia, szybkość ataku, zasięg, szybkość ruchu, redukcja obrażeń (maks. 60%), szansa na krytyk
+(maks. 75%), mnożnik krytyka, odnowienie umiejętności. Wyliczane w jednym miejscu (`src/sim/stats.ts`):
+klasa → rangi Sanktuarium → ulepszenia z wyprawy.
 
-### Fale
-1: 3 Wydrążonych · 2: 5 · 3: Kolos + 3 · 4: Kolos + 5 · 5: 2 Kolosy + 4 · dalej rośnie liczba i HP (+8%/fala od 4.).
-Spawn sygnalizowany turkusowym kręgiem (0.9–1.2 s, wróg nietykalny i niegroźny), nigdy bliżej niż 4.5 kafla.
+## Ulepszenia z wyprawy (15, każde z limitem stosów)
+Statystyczne: +obrażenia, +szybkość ataku, +zdrowie (z leczeniem), +ruch, +krytyk, +obrażenia krytyczne,
++redukcja, −odnowienie, +zasięg. Specjalne: **Przeszywające odłamki** (Wędrowiec), **Szeroki zamach**
+(Strażnik), **Żarłoczny popiół** (leczenie za zabójstwo), **Kruche dusze** (wybuch przy śmierci wroga, bez
+reakcji łańcuchowej), **Ostatni bastion** (+35% obrażeń poniżej 35% HP), **Kontra z przewrotu** (pierwszy
+atak po uniku +100% i krytyk).
 
-## Plan systemów (kolejne etapy — jeszcze NIE ma ich w kodzie)
-- Archetypy: dystansowy, szarżujący, wspierający, obszarowy; boss z 2 fazami.
-- Druga klasa: Wędrowiec Otchłani (mobilność, dystans, pozycjonowanie).
-- ~40 przedmiotów, 12 reliktów, ~15 talentów — z naciskiem na synergie (statusy z auto-ataku,
-  bonus po uniku, efekty przy zabójstwie, niskie HP), z twardymi limitami stackowania.
-- Loch: 8–12 typów pomieszczeń, walidacja przechodniości, seed.
-- Baza: Kuźnia (wyposażenie), Sanktuarium (trwały rozwój), Archiwum (wiedza o świecie).
-- Trwały postęp oddzielony od zasobów traconych przy śmierci.
+## Rangi Sanktuarium (stałe)
+Witalność +10 HP (5 rang) · Siła +6% obrażeń (5) · Zręczność +5% szybkości ataku (5) · Zwinność +4% ruchu (3)
+· Hart +4% redukcji (4) · Precyzja +3% krytyka (4). Koszty rosną (15 → 150 popiołu).
+
+## Przeciwnicy
+| | Wydrążony | Akolita Popiołu | Popielny Kolos |
+|---|---|---|---|
+| Rola | szybki rój, otacza | dystans, trzyma odległość | wolny czołg, karze błędy |
+| Atak | stożek 100° (10 dmg) | ognisty pocisk po linii (11 dmg) | koło przed sobą (28 dmg) |
+| Telegraf | 0,6 s | 0,85 s, czerwona linia aż do ściany | 1,0 s |
+Pociski wrogów można przeskoczyć unikiem. Lekkie ciosy nie przerywają zamachu (Rozłam/Szarża tak).
+Po ciosie faza odpoczynku = okno kontry. Z każdym piętrem: +30% HP, +15% obrażeń wrogów.
+
+## Płynność ruchu (poprawione po zgłoszeniu „raz szybciej, raz wolniej”)
+- joystick: pełna prędkość już od ~45% wychylenia (wcześniej liniowo),
+- prędkość wyrównana między kierunkami ekranu (izometria 2:1 dawała 2× różnicę → teraz ~1,2×; tak samo dla wrogów),
+- brak zamrożeń przy zwykłych trafieniach (hit-stop tylko przy krytykach i umiejętnościach),
+- kamera wygładzana niezależnie od liczby klatek.
+
+## Jeszcze nie ma (kolejne etapy)
+Boss z 2 fazami, wrogowie szarżujący i wspierający, przedmioty i relikty, talenty, Kuźnia i Archiwum
+w bazie, samouczek, finalna grafika i muzyka.

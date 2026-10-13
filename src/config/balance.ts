@@ -1,6 +1,8 @@
 /**
- * Every tunable gameplay number lives here. Units: distances in tiles,
+ * Core tunables shared by every hero and enemy. Units: distances in tiles,
  * times in seconds, speeds in tiles/second, angles in degrees.
+ * Hero classes: heroes.ts · skills: skills.ts · upgrades: upgrades.ts ·
+ * XP / ash / sanctuary: progression.ts · dungeon layout: dungeon.ts
  */
 
 /** Fixed simulation step. Gameplay never depends on render frame rate. */
@@ -8,32 +10,14 @@ export const SIM_DT = 1 / 60;
 /** Max sim steps per rendered frame (prevents a death spiral after a hitch). */
 export const MAX_STEPS_PER_FRAME = 6;
 
-export const HERO = {
-  maxHp: 100,
-  radius: 0.3,
-  moveSpeed: 4.2,
+export const COMMON = {
+  heroRadius: 0.3,
   /** Share of a body overlap the hero resolves (enemies take the rest, weighted by mass). */
-  mass: 1.2,
-  damageReduction: 0,
-  crit: { chance: 0.12, mult: 1.8 },
-  attack: {
-    damage: 14,
-    /** Time between attack starts. */
-    interval: 0.72,
-    /** Swing wind-up before the hit lands. Dodging cancels it. */
-    windup: 0.11,
-    /** Max centre-to-centre distance to start an attack. */
-    range: 1.45,
-    /** Extra reach while the swing is in progress (forgives a target stepping back slightly). */
-    landSlack: 0.3,
-    /** Enemies inside this arc around the swing direction also take cleave damage. */
-    cleaveArcDeg: 80,
-    cleaveRatio: 0.5,
-    /** Knockback impulse on regular enemies (tiles/s, decays by ENEMY_FRICTION). */
-    knockback: 1.6,
-    hitstop: 0.035,
-    critHitstop: 0.065,
-  },
+  heroMass: 1.2,
+  /** Mercy invulnerability after taking a hit, so overlapping attacks don't chain-delete the hero. */
+  hurtIframes: 0.45,
+  /** A dodge / skill press this early before it is ready is remembered. */
+  inputBuffer: 0.15,
   targeting: {
     /** Candidates are considered slightly beyond attack range so the marker appears before contact. */
     acquireMargin: 0.35,
@@ -44,34 +28,19 @@ export const HERO = {
     /** ...and only after the current lock has lasted this long. */
     minLock: 0.5,
   },
-  dodge: {
-    duration: 0.3,
-    distance: 2.7,
-    /** Invulnerability from the start of the roll. */
-    iframes: 0.24,
-    cooldown: 1.05,
-    /** A press this early before the dodge is ready is remembered. */
-    buffer: 0.15,
-  },
-  /** Mercy invulnerability after taking a hit, so overlapping attacks don't chain-delete the hero. */
-  hurtIframes: 0.45,
-} as const;
-
-export const SKILLS = {
-  sunder: {
-    id: 'sunder',
-    name: 'Rozłam',
-    description: 'Uderzasz w ziemię. Odrzuca, ogłusza i przerywa ataki wrogów wokół ciebie.',
-    /** Rooted cast before impact. Cannot be cancelled — it is a commitment. */
-    castTime: 0.28,
-    radius: 2.4,
-    damageMult: 2.6,
-    knockback: 9,
-    stun: 1.1,
-    cooldown: 7.5,
-    buffer: 0.15,
-    hitstop: 0.08,
-  },
+  /**
+   * Hit-stop (world freeze) gives weight to big hits. Regular auto-attacks get none:
+   * they land every ~0.7 s and freezing on each one made walking stutter.
+   */
+  hitstop: { crit: 0.04, skill: 0.07 },
+  /**
+   * Walking speed is evened out across screen directions. In a 2:1 isometric view a
+   * world tile is 45 px wide on screen but only 23 px tall, so a constant world speed
+   * looks twice as fast sideways as up/down. Movement is scaled by
+   * (screenLength / axisLength) ^ -isoCompensation; 0 = none, 1 = equal screen speed.
+   * Applied identically to the hero and enemies, so chases stay fair.
+   */
+  isoCompensation: 0.7,
 } as const;
 
 /** Exponential decay rate of enemy knockback velocity (higher = shorter slide). */
@@ -79,7 +48,9 @@ export const ENEMY_FRICTION = 9;
 
 export type StrikeShape =
   | { kind: 'cone'; radius: number; arcDeg: number }
-  | { kind: 'circle'; offset: number; radius: number };
+  | { kind: 'circle'; offset: number; radius: number }
+  /** A projectile fired along the locked aim; the telegraph is a line of `range` tiles. */
+  | { kind: 'bolt'; speed: number; radius: number; range: number };
 
 export interface EnemyDef {
   name: string;
@@ -92,6 +63,10 @@ export interface EnemyDef {
   /** Multiplier on stun durations. */
   stunTaken: number;
   spawnTime: number;
+  xp: number;
+  ash: number;
+  /** Ranged enemies try to hold this distance band from the hero instead of closing in. */
+  keepAway?: { min: number; max: number };
   attack: {
     /** Distance at which the enemy commits to an attack. */
     triggerRange: number;
@@ -107,7 +82,7 @@ export interface EnemyDef {
   };
 }
 
-export type EnemyKind = 'thrall' | 'brute';
+export type EnemyKind = 'thrall' | 'brute' | 'acolyte';
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   /** Fast, fragile melee swarmer. Telegraphs a short claw cone. */
@@ -120,6 +95,8 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     poise: 0,
     stunTaken: 1,
     spawnTime: 0.9,
+    xp: 3,
+    ash: 1,
     attack: {
       triggerRange: 1.2,
       windup: 0.6,
@@ -141,6 +118,8 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
     poise: 0.8,
     stunTaken: 0.6,
     spawnTime: 1.2,
+    xp: 10,
+    ash: 4,
     attack: {
       triggerRange: 1.75,
       windup: 1.0,
@@ -152,29 +131,28 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
       shape: { kind: 'circle', offset: 1.25, radius: 1.2 },
     },
   },
+  /** Fragile caster. Keeps its distance and lobs slow embers along a telegraphed line. */
+  acolyte: {
+    name: 'Akolita Popiołu',
+    maxHp: 34,
+    radius: 0.3,
+    speed: 2.1,
+    mass: 0.9,
+    poise: 0,
+    stunTaken: 1.2,
+    spawnTime: 1.0,
+    xp: 5,
+    ash: 2,
+    keepAway: { min: 3.2, max: 5.5 },
+    attack: {
+      triggerRange: 6.5,
+      windup: 0.85,
+      trackFraction: 0.45,
+      turnRate: 160,
+      recovery: 0.5,
+      cooldown: 2.4,
+      damage: 11,
+      shape: { kind: 'bolt', speed: 6.5, radius: 0.24, range: 9 },
+    },
+  },
 };
-
-export const WAVES = {
-  /** Pause between a cleared wave and the next spawn. */
-  breakTime: 2.6,
-  /** Enemies never spawn closer than this to the hero. */
-  minSpawnDistance: 4.5,
-  /** Per-wave HP growth beyond wave 3, so endless play keeps escalating. */
-  hpGrowthPerWave: 0.08,
-};
-
-/** Enemy roster for a wave number (1-based). Hand-tuned early, then formulaic. */
-export function waveComposition(wave: number): EnemyKind[] {
-  const table: EnemyKind[][] = [
-    ['thrall', 'thrall', 'thrall'],
-    ['thrall', 'thrall', 'thrall', 'thrall', 'thrall'],
-    ['brute', 'thrall', 'thrall', 'thrall'],
-    ['brute', 'thrall', 'thrall', 'thrall', 'thrall', 'thrall'],
-    ['brute', 'brute', 'thrall', 'thrall', 'thrall', 'thrall'],
-  ];
-  const fixed = table[wave - 1];
-  if (fixed) return [...fixed];
-  const brutes = Math.min(4, 2 + Math.floor((wave - 5) / 2));
-  const thralls = Math.min(12, 5 + (wave - 5));
-  return [...Array<EnemyKind>(brutes).fill('brute'), ...Array<EnemyKind>(thralls).fill('thrall')];
-}

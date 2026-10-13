@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { HERO } from '../src/config/balance';
-import { Simulation } from '../src/sim/simulation';
+import { COMMON } from '../src/config/balance';
+import { HEROES } from '../src/config/heroes';
 import { chooseTarget, type TargetingParams } from '../src/sim/targeting';
 import type { Enemy } from '../src/sim/types';
-import { openRoom, run } from './helpers';
+import { openRoom, run, sandbox } from './helpers';
+
+const W = HEROES.warden;
 
 const P: TargetingParams = {
   attackRange: 1.5,
@@ -73,7 +75,7 @@ describe('chooseTarget (pure)', () => {
 
 describe('auto-attack in the simulation', () => {
   it('attacks the nearest enemy without any button press and switches after its death', () => {
-    const sim = new Simulation(openRoom(), { seed: 1, waves: false });
+    const sim = sandbox(openRoom(), { seed: 1 });
     const h = sim.hero;
     const a = sim.spawnEnemy('thrall', h.x + 1.0, h.y, { instant: true });
     const b = sim.spawnEnemy('thrall', h.x, h.y + 1.3, { instant: true });
@@ -90,14 +92,14 @@ describe('auto-attack in the simulation', () => {
 
   it('never attacks through a wall, even when the enemy is within reach by distance', () => {
     // Wall tile (9,8). Hero left of it, enemy above-right: 1.34 tiles apart, segment crosses the wall.
-    const sim = new Simulation(openRoom({ 8: '#........#.....#' }), { seed: 2, waves: false });
+    const sim = sandbox(openRoom({ 8: '#........#.....#' }), { seed: 2 });
     const h = sim.hero;
     h.x = 8.68;
     h.y = 8.2;
     const e = sim.spawnEnemy('thrall', 9.9, 7.6, { instant: true });
     e.state = 'stunned'; // keep it in place
     e.stateT = 99;
-    expect(Math.hypot(e.x - h.x, e.y - h.y)).toBeLessThan(HERO.attack.range);
+    expect(Math.hypot(e.x - h.x, e.y - h.y)).toBeLessThan(W.attack.range);
     const startHp = e.hp;
     const ev = run(sim, 2);
     expect(ev.some((x) => x.type === 'swing')).toBe(false);
@@ -106,7 +108,7 @@ describe('auto-attack in the simulation', () => {
   });
 
   it('respects the attack interval (cooldown)', () => {
-    const sim = new Simulation(openRoom(), { seed: 3, waves: false });
+    const sim = sandbox(openRoom(), { seed: 3 });
     const h = sim.hero;
     const e = sim.spawnEnemy('brute', h.x + 1.2, h.y, { instant: true });
     e.state = 'stunned';
@@ -121,8 +123,8 @@ describe('auto-attack in the simulation', () => {
     for (let i = 1; i < swingTimes.length; i++) {
       const gap = swingTimes[i]! - swingTimes[i - 1]!;
       // never faster than the interval; at most one step + hit-stop slower
-      expect(gap).toBeGreaterThanOrEqual(HERO.attack.interval - 1e-9);
-      expect(gap).toBeLessThanOrEqual(HERO.attack.interval + HERO.attack.critHitstop + 2 / 60);
+      expect(gap).toBeGreaterThanOrEqual(W.attack.interval - 1e-9);
+      expect(gap).toBeLessThanOrEqual(W.attack.interval + COMMON.hitstop.crit + 2 / 60);
     }
   });
 });

@@ -549,6 +549,265 @@ function maul(ctx: Ctx): void {
   ctx.restore();
 }
 
+function wandererBody(ctx: Ctx): void {
+  // 38 x 48, hooded skirmisher in a long travel coat. Feet line y=48.
+  // coat tails
+  poly(ctx, [11, 20, 28, 20, 33, 45, 28, 42, 24, 47, 19, 43, 14, 47, 9, 43, 6, 46]);
+  const cg = ctx.createLinearGradient(0, 18, 0, 47);
+  cg.addColorStop(0, css(0x34303a));
+  cg.addColorStop(1, css(0x17151b));
+  ctx.fillStyle = cg;
+  ctx.fill();
+  // torso wrap
+  ctx.beginPath();
+  ctx.roundRect(12, 17, 15, 19, 5);
+  const tg = ctx.createLinearGradient(12, 0, 27, 0);
+  tg.addColorStop(0, css(0x5a4a3c));
+  tg.addColorStop(1, css(0x2c241e));
+  ctx.fillStyle = tg;
+  ctx.fill();
+  // crossed straps with shard pouches
+  ctx.strokeStyle = css(0x1e1712);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(13, 19);
+  ctx.lineTo(26, 33);
+  ctx.stroke();
+  ctx.fillStyle = css(PAL.emberHot);
+  ctx.fillRect(18.5, 25, 2.5, 2.5);
+  // scarf
+  ctx.fillStyle = css(0x7a2e24);
+  ctx.beginPath();
+  ctx.ellipse(20, 17, 8, 3.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  poly(ctx, [14, 17, 10, 28, 13, 28, 16, 18]);
+  ctx.fill();
+  // hood
+  ctx.beginPath();
+  ctx.moveTo(12, 16);
+  ctx.quadraticCurveTo(12, 1, 21, 1);
+  ctx.quadraticCurveTo(30, 2, 29, 15);
+  ctx.closePath();
+  const hg = ctx.createLinearGradient(12, 0, 30, 16);
+  hg.addColorStop(0, css(0x4a4552));
+  hg.addColorStop(1, css(0x1f1c24));
+  ctx.fillStyle = hg;
+  ctx.fill();
+  // face in shadow + ember eyes
+  ctx.beginPath();
+  ctx.ellipse(24, 10, 4.2, 4.6, 0, 0, Math.PI * 2);
+  ctx.fillStyle = css(0x0c0b0e);
+  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = css(PAL.ember);
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = css(PAL.emberHot);
+  ctx.fillRect(23.5, 9, 1.8, 1.4);
+  ctx.fillRect(26.4, 9, 1.6, 1.4);
+  ctx.restore();
+}
+
+function staff(ctx: Ctx): void {
+  // 46 x 12; grip at x=6 (origin), crystal at the far end.
+  ctx.fillStyle = css(0x3b2a1e);
+  ctx.fillRect(0, 5, 38, 2.4);
+  ctx.fillStyle = css(PAL.gold);
+  ctx.fillRect(34, 3.8, 2, 4.8);
+  poly(ctx, [37, 6.2, 41, 1, 46, 6.2, 41, 11.4]);
+  ctx.save();
+  ctx.shadowColor = css(PAL.ember);
+  ctx.shadowBlur = 6;
+  const g = ctx.createLinearGradient(37, 0, 46, 12);
+  g.addColorStop(0, css(0xfff1d6));
+  g.addColorStop(1, css(PAL.ember));
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
+}
+
+function acolyteBody(ctx: Ctx): void {
+  // 34 x 46, robed caster. Feet line y=46.
+  poly(ctx, [10, 14, 24, 14, 30, 46, 4, 46]);
+  const rg = ctx.createLinearGradient(0, 14, 0, 46);
+  rg.addColorStop(0, css(0x2b3532));
+  rg.addColorStop(1, css(0x111615));
+  ctx.fillStyle = rg;
+  ctx.fill();
+  // ash-grey sash and hem runes
+  ctx.strokeStyle = css(PAL.hollow, 0.55);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(7 + i * 4.5, 43);
+    ctx.lineTo(8.5 + i * 4.5, 40);
+    ctx.stroke();
+  }
+  ctx.fillStyle = css(0x8a8478);
+  ctx.fillRect(9, 26, 16, 2.5);
+  // cowl with a bone mask
+  ctx.beginPath();
+  ctx.moveTo(9, 15);
+  ctx.quadraticCurveTo(9, 0, 17, 0);
+  ctx.quadraticCurveTo(26, 0, 25, 15);
+  ctx.closePath();
+  ctx.fillStyle = css(0x1d2422);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(19, 8.5, 4.4, 5.2, 0.15, 0, Math.PI * 2);
+  ctx.fillStyle = css(0xd8d0bd);
+  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = css(PAL.hollow);
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = css(PAL.hollow);
+  ctx.fillRect(18.6, 7, 2, 1.6);
+  ctx.fillRect(21.4, 7.2, 1.6, 1.4);
+  ctx.restore();
+  // raised hand holding a cinder
+  ctx.strokeStyle = css(0x2b3532);
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(22, 18);
+  ctx.lineTo(29, 14);
+  ctx.stroke();
+  ctx.save();
+  ctx.shadowColor = css(PAL.danger);
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = css(0xff7a4a);
+  ctx.beginPath();
+  ctx.arc(30.5, 12, 2.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function chest(ctx: Ctx, open: boolean): void {
+  // 40 x 34 iso chest, origin bottom centre.
+  const body = 0x5a3a22;
+  poly(ctx, [4, 16, 20, 24, 20, 34, 4, 26]);
+  ctx.fillStyle = css(shade(body, 0.7));
+  ctx.fill();
+  poly(ctx, [20, 24, 36, 16, 36, 26, 20, 34]);
+  ctx.fillStyle = css(body);
+  ctx.fill();
+  ctx.strokeStyle = css(PAL.gold);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(4, 21);
+  ctx.lineTo(20, 29);
+  ctx.lineTo(36, 21);
+  ctx.stroke();
+  if (open) {
+    poly(ctx, [4, 16, 20, 8, 36, 16, 20, 24]);
+    ctx.fillStyle = css(0x120c08);
+    ctx.fill();
+    ctx.save();
+    ctx.shadowColor = css(PAL.emberHot);
+    ctx.shadowBlur = 8;
+    poly(ctx, [10, 16, 20, 11, 30, 16, 20, 21]);
+    ctx.fillStyle = css(PAL.ember, 0.6);
+    ctx.fill();
+    ctx.restore();
+    poly(ctx, [4, 16, 20, 8, 20, -2, 4, 6]);
+    ctx.fillStyle = css(shade(body, 0.85));
+    ctx.fill();
+  } else {
+    poly(ctx, [4, 16, 20, 8, 36, 16, 20, 24]);
+    ctx.fillStyle = css(shade(body, 1.25));
+    ctx.fill();
+    poly(ctx, [4, 16, 20, 24, 20, 20, 4, 12]);
+    ctx.fill();
+    ctx.strokeStyle = css(PAL.gold);
+    ctx.beginPath();
+    ctx.moveTo(12, 12);
+    ctx.lineTo(28, 20);
+    ctx.stroke();
+    ctx.fillStyle = css(PAL.gold);
+    ctx.fillRect(18.5, 24, 3, 4);
+  }
+}
+
+function shrine(ctx: Ctx): void {
+  // 40 x 46 stone altar with a bowl, origin bottom centre.
+  poly(ctx, [6, 32, 20, 39, 34, 32, 34, 40, 20, 46, 6, 40]);
+  ctx.fillStyle = css(0x3a3e48);
+  ctx.fill();
+  poly(ctx, [6, 32, 20, 25, 34, 32, 20, 39]);
+  ctx.fillStyle = css(0x555b67);
+  ctx.fill();
+  ctx.fillStyle = css(0x2c2f37);
+  poly(ctx, [15, 33, 25, 33, 23, 16, 17, 16]);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(20, 15, 9, 4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = css(0x4a4f5a);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(20, 14, 7, 2.8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = css(PAL.gold, 0.9);
+  ctx.fill();
+  ctx.strokeStyle = css(PAL.gold, 0.5);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(17, 21);
+  ctx.lineTo(20, 24);
+  ctx.lineTo(23, 21);
+  ctx.stroke();
+}
+
+function stairs(ctx: Ctx): void {
+  // 64 x 32 floor decal: steps descending into the dark, drawn inside a tile diamond.
+  diamond(ctx, 32, 16, 30, 15);
+  ctx.fillStyle = css(PAL.void);
+  ctx.fill();
+  ctx.save();
+  diamond(ctx, 32, 16, 30, 15);
+  ctx.clip();
+  for (let i = 0; i < 5; i++) {
+    const t = i / 5;
+    ctx.fillStyle = css(shade(0x3a3f4b, 1 - t * 0.8));
+    poly(ctx, [6 + i * 5, 16 - i * 0.5, 32, 3 + i * 2.6, 58 - i * 5, 16 - i * 0.5, 32, 29 - i * 3]);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.strokeStyle = css(PAL.stone5);
+  ctx.lineWidth = 1.5;
+  diamond(ctx, 32, 16, 30, 15);
+  ctx.stroke();
+}
+
+/** Portcullis panel along a wall. slope = screen dy/dx of the wall line (+0.5 world-x wall, −0.5 world-y wall). */
+function gate(ctx: Ctx, slope: number): void {
+  // 64 x 72; the panel's foot passes through the tile centre at (32, 56).
+  const foot = (x: number) => 56 + slope * (x - 32);
+  const H = 34;
+  ctx.strokeStyle = css(0x2b2d33);
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 5; i++) {
+    const x = 12 + i * 10;
+    ctx.beginPath();
+    ctx.moveTo(x, foot(x) - H);
+    ctx.lineTo(x, foot(x) + 1);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = css(0x50535c);
+  ctx.lineWidth = 2.2;
+  for (const up of [10, 26]) {
+    ctx.beginPath();
+    ctx.moveTo(8, foot(8) - up);
+    ctx.lineTo(56, foot(56) - up);
+    ctx.stroke();
+  }
+  ctx.save();
+  ctx.shadowColor = css(PAL.danger);
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = css(PAL.danger, 0.9);
+  ctx.beginPath();
+  ctx.arc(32, foot(32) - 18, 2.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 // ───────────────────────────── FX ─────────────────────────────
 
 function slash(ctx: Ctx): void {
@@ -621,6 +880,35 @@ export function generateTextures(scene: Phaser.Scene): void {
   make(scene, 'bruteBody', 60, 62, bruteBody);
   make(scene, 'bruteLeg', 10, 16, bruteLeg);
   make(scene, 'maul', 46, 22, maul);
+
+  make(scene, 'wandererBody', 38, 48, wandererBody);
+  make(scene, 'staff', 46, 12, staff);
+  make(scene, 'acolyteBody', 34, 46, acolyteBody);
+  make(scene, 'chest', 40, 36, (c) => {
+    c.translate(0, 2);
+    chest(c, false);
+  });
+  make(scene, 'chestOpen', 40, 36, (c) => {
+    c.translate(0, 2);
+    chest(c, true);
+  });
+  make(scene, 'shrine', 40, 46, shrine);
+  make(scene, 'stairs', 64, 32, stairs);
+  make(scene, 'gateX', 64, 72, (c) => gate(c, 0.5));
+  make(scene, 'gateY', 64, 72, (c) => gate(c, -0.5));
+  make(scene, 'shard', 18, 6, (c) => {
+    poly(c, [0, 3, 6, 0.5, 18, 3, 6, 5.5]);
+    const g = c.createLinearGradient(0, 0, 18, 0);
+    g.addColorStop(0, css(PAL.ember, 0));
+    g.addColorStop(0.5, css(PAL.emberHot));
+    g.addColorStop(1, '#fffaf0');
+    c.fillStyle = g;
+    c.fill();
+  });
+  make(scene, 'ember', 20, 20, (c) => {
+    c.fillStyle = radial(c, 10, 10, 10, [[0, '#fff2e0'], [0.3, css(0xff6a3a)], [0.7, css(PAL.dangerDeep, 0.8)], [1, css(PAL.dangerDeep, 0)]]);
+    c.fillRect(0, 0, 20, 20);
+  });
 
   make(scene, 'shadow', 64, 32, (c) => {
     c.save();

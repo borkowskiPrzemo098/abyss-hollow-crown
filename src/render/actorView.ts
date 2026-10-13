@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { HERO, SKILLS } from '../config/balance';
+import type { HeroId } from '../config/heroes';
+import { SKILLS } from '../config/skills';
 import { depthOf, worldDirToScreenAngle, worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Enemy, Hero } from '../sim/types';
 import { PAL } from './palette';
@@ -29,32 +30,51 @@ function updateFlip(current: boolean, screenAngle: number): boolean {
 
 // ───────────────────────────── hero ─────────────────────────────
 
+interface HeroRigSpec {
+  body: string;
+  weapon: string;
+  weaponOx: number;
+  /** Resting weapon angle in the rig's right-facing frame. */
+  rest: number;
+  hand: { x: number; y: number };
+}
+
+const HERO_RIGS: Record<HeroId, HeroRigSpec> = {
+  warden: { body: 'heroBody', weapon: 'sword', weaponOx: 6 / 44, rest: 1.15, hand: { x: 8, y: -21 } },
+  wanderer: { body: 'wandererBody', weapon: 'staff', weaponOx: 6 / 46, rest: -0.55, hand: { x: 9, y: -20 } },
+};
+
 export class HeroView {
   readonly root: Phaser.GameObjects.Container;
   readonly light: Phaser.GameObjects.Image;
   private readonly rig: Phaser.GameObjects.Container;
-  private readonly shadow: Phaser.GameObjects.Image;
   private readonly legL: Phaser.GameObjects.Image;
   private readonly legR: Phaser.GameObjects.Image;
   readonly body: Phaser.GameObjects.Image;
-  private readonly sword: Phaser.GameObjects.Image;
-  private flipped = false;
+  private readonly weapon: Phaser.GameObjects.Image;
+  private readonly spec: HeroRigSpec;
+  readonly bodyKey: string;
+  flipped = false;
   private walkPhase = 0;
   private swingClock = -1;
+  /** Screen angle of the current shot (ranged thrust aims at it). */
+  private swingAngle = 0;
   private castClock = -1;
   private flashT = 0;
   private deadClock = -1;
   sx = 0;
   sy = 0;
 
-  constructor(scene: Phaser.Scene) {
-    this.shadow = scene.add.image(0, 0, 'shadow').setScale(S * 0.62);
+  constructor(scene: Phaser.Scene, readonly heroId: HeroId) {
+    this.spec = HERO_RIGS[heroId];
+    this.bodyKey = this.spec.body;
+    const shadow = scene.add.image(0, 0, 'shadow').setScale(S * 0.62);
     this.legL = scene.add.image(-5, -15, 'heroLeg').setScale(S).setOrigin(0.5, 0);
     this.legR = scene.add.image(4, -15, 'heroLeg').setScale(S).setOrigin(0.5, 0);
-    this.body = scene.add.image(0, -3, 'heroBody').setScale(S).setOrigin(0.5, 1);
-    this.sword = scene.add.image(8, -24, 'sword').setScale(S).setOrigin(6 / 44, 0.5);
-    this.rig = scene.add.container(0, 0, [this.legL, this.legR, this.body, this.sword]);
-    this.root = scene.add.container(0, 0, [this.shadow, this.rig]);
+    this.body = scene.add.image(0, -3, this.spec.body).setScale(S).setOrigin(0.5, 1);
+    this.weapon = scene.add.image(this.spec.hand.x, this.spec.hand.y, this.spec.weapon).setScale(S).setOrigin(this.spec.weaponOx, 0.5);
+    this.rig = scene.add.container(0, 0, [this.legL, this.legR, this.body, this.weapon]);
+    this.root = scene.add.container(0, 0, [shadow, this.rig]);
     this.light = scene.add
       .image(0, 0, 'light')
       .setScale(4.4 / RES, 2.4 / RES)
@@ -64,8 +84,9 @@ export class HeroView {
       .setDepth(LAYER.groundLight);
   }
 
-  onSwing(): void {
+  onSwing(screenAngle: number): void {
     this.swingClock = 0;
+    this.swingAngle = screenAngle;
   }
 
   onCast(): void {
@@ -87,13 +108,16 @@ export class HeroView {
     this.flipped = updateFlip(this.flipped, fa);
     this.rig.setScale(this.flipped ? -1 : 1, 1);
 
+    const sp = this.spec;
+    const ranged = this.heroId === 'wanderer';
     const speed = Math.hypot(h.vx, h.vy);
     let bodyY = -3;
     let bodyRot = 0;
     let bodySY = 1;
     let legLift = 0;
-    let swordA = 1.15 + Math.sin(time * 2.2) * 0.04;
-    let swordVisible = true;
+    let weaponA = sp.rest + Math.sin(time * 2.2) * 0.04;
+    let weaponX = sp.hand.x;
+    let weaponVisible = true;
     let legsVisible = true;
 
     if (h.state === 'dead') {
@@ -102,7 +126,7 @@ export class HeroView {
       const t = Math.min(1, this.deadClock / 0.45);
       bodyRot = easeOut(t) * 1.35;
       bodyY = lerp(-3, 4, t);
-      swordA = lerp(swordA, 2.6, t);
+      weaponA = lerp(weaponA, 2.6, t);
       legsVisible = t < 0.5;
     } else {
       this.deadClock = -1;
@@ -114,33 +138,50 @@ export class HeroView {
         bodyY += Math.sin(time * 2.4) * 0.5; // breathing
       }
       if (h.state === 'dodge') {
-        const u = Math.min(1, h.dodgeT / HERO.dodge.duration);
+        const u = Math.min(1, h.dodgeT / h.cls.dodge.duration);
         bodyRot = u * Math.PI * 2;
         bodyY = -3 - Math.sin(u * Math.PI) * 7;
         bodySY = 0.82;
         legsVisible = false;
-        swordVisible = false;
+        weaponVisible = false;
+      }
+      if (h.state === 'dash') {
+        // shoulder-first charge, blade levelled ahead
+        bodyRot = 0.28;
+        bodyY = -2;
+        weaponA = 0.15;
+        legLift = Math.sin(time * 40);
       }
       if (this.swingClock >= 0) {
-        const w = HERO.attack.windup;
+        const w = h.cls.attack.windup;
         const t = this.swingClock;
-        if (t < w) swordA = lerp(1.15, -2.0, easeOut(t / w));
-        else if (t < w + 0.08) swordA = lerp(-2.0, 1.55, easeOut((t - w) / 0.08));
-        else if (t < w + 0.32) swordA = lerp(1.55, 1.15, (t - w - 0.08) / 0.24);
-        else this.swingClock = -1;
+        if (ranged) {
+          // short thrust of the staff toward the target
+          const aim = this.flipped ? Math.PI - this.swingAngle : this.swingAngle;
+          const local = Math.atan2(Math.sin(aim), Math.cos(aim));
+          const k = t < w ? easeOut(t / w) : t < w + 0.18 ? 1 - (t - w) / 0.18 : 0;
+          weaponA = lerp(sp.rest, Math.max(-1.2, Math.min(1.2, local)), k);
+          weaponX = sp.hand.x + 4 * k;
+          if (t >= w + 0.18) this.swingClock = -1;
+        } else {
+          if (t < w) weaponA = lerp(sp.rest, -2.0, easeOut(t / w));
+          else if (t < w + 0.08) weaponA = lerp(-2.0, 1.55, easeOut((t - w) / 0.08));
+          else if (t < w + 0.32) weaponA = lerp(1.55, sp.rest, (t - w - 0.08) / 0.24);
+          else this.swingClock = -1;
+        }
         if (this.swingClock >= 0) this.swingClock += dt;
       }
       if (this.castClock >= 0) {
-        const c = SKILLS.sunder.castTime;
+        const c = h.skill.id === 'sunder' ? SKILLS.sunder.castTime : 0.12;
         const t = this.castClock;
         if (t < c) {
-          swordA = lerp(1.15, -1.75, easeOut(t / c));
+          weaponA = lerp(sp.rest, -1.75, easeOut(t / c));
           bodyY -= easeOut(t / c) * 5;
         } else if (t < c + 0.1) {
-          swordA = lerp(-1.75, 1.7, (t - c) / 0.1);
+          weaponA = lerp(-1.75, ranged ? 0 : 1.7, (t - c) / 0.1);
           bodySY = 0.9;
         } else if (t < c + 0.4) {
-          swordA = lerp(1.7, 1.15, (t - c - 0.1) / 0.3);
+          weaponA = lerp(ranged ? 0 : 1.7, sp.rest, (t - c - 0.1) / 0.3);
         } else this.castClock = -1;
         if (this.castClock >= 0) this.castClock += dt;
       }
@@ -149,9 +190,9 @@ export class HeroView {
     this.legL.setVisible(legsVisible).setY(-15 - Math.max(0, legLift) * 2.5);
     this.legR.setVisible(legsVisible).setY(-15 - Math.max(0, -legLift) * 2.5);
     this.body.setPosition(0, bodyY).setRotation(bodyRot).setScale(S, S * bodySY);
-    this.sword.setVisible(swordVisible).setPosition(8, bodyY - 21).setRotation(swordA);
+    this.weapon.setVisible(weaponVisible).setPosition(weaponX, bodyY + sp.hand.y + 3).setRotation(weaponA);
 
-    // feedback tints: hurt flash > i-frame shimmer > none
+    // feedback tints: hurt flash > i-frame shimmer > empowered glow > none
     this.flashT = Math.max(0, this.flashT - dt);
     if (this.flashT > 0) {
       tintFill(this.body, 0xff6b5e);
@@ -159,7 +200,8 @@ export class HeroView {
       tintFill(this.body, PAL.emberHot);
       this.body.setAlpha(0.75);
     } else {
-      this.body.clearTint();
+      if (h.empowerT > 0) tintMul(this.body, 0xffd9a0);
+      else this.body.clearTint();
       this.body.setAlpha(h.hurtT > 0 && Math.floor(time * 20) % 2 === 0 ? 0.55 : 1);
     }
   }
@@ -174,7 +216,8 @@ export class HeroView {
 
 interface EnemyRigSpec {
   body: string;
-  leg: string;
+  /** Robed enemies have no visible legs. */
+  leg: string | null;
   bodyY: number;
   legY: number;
   legX: [number, number];
@@ -195,6 +238,7 @@ const RIGS: Record<Enemy['kind'], EnemyRigSpec> = {
     headY: -76,
     weapon: { key: 'maul', ox: 4 / 46, x: 18, y: -40 },
   },
+  acolyte: { body: 'acolyteBody', leg: null, bodyY: -2, legY: 0, legX: [0, 0], shadow: 0.55, headY: -54 },
 };
 
 export class EnemyView {
@@ -218,8 +262,8 @@ export class EnemyView {
     this.spec = RIGS[e.kind];
     const sp = this.spec;
     const shadow = scene.add.image(0, 0, 'shadow').setScale(S * sp.shadow);
-    this.legL = scene.add.image(sp.legX[0], sp.legY, sp.leg).setScale(S).setOrigin(0.5, 0);
-    this.legR = scene.add.image(sp.legX[1], sp.legY, sp.leg).setScale(S).setOrigin(0.5, 0);
+    this.legL = scene.add.image(sp.legX[0], sp.legY, sp.leg ?? 'thrallLeg').setScale(S).setOrigin(0.5, 0).setVisible(!!sp.leg);
+    this.legR = scene.add.image(sp.legX[1], sp.legY, sp.leg ?? 'thrallLeg').setScale(S).setOrigin(0.5, 0).setVisible(!!sp.leg);
     this.body = scene.add.image(0, sp.bodyY, sp.body).setScale(S).setOrigin(0.5, 1);
     const parts: Phaser.GameObjects.GameObject[] = [this.legL, this.legR, this.body];
     this.weapon = sp.weapon
@@ -318,8 +362,9 @@ export class EnemyView {
       this.body.clearTint();
     }
 
-    this.legL.setY(sp.legY - Math.max(0, legLift) * 2.4).setVisible(e.state !== 'dead' || e.deadT < 0.25);
-    this.legR.setY(sp.legY - Math.max(0, -legLift) * 2.4).setVisible(e.state !== 'dead' || e.deadT < 0.25);
+    const legs = !!sp.leg && (e.state !== 'dead' || e.deadT < 0.25);
+    this.legL.setY(sp.legY - Math.max(0, legLift) * 2.4).setVisible(legs);
+    this.legR.setY(sp.legY - Math.max(0, -legLift) * 2.4).setVisible(legs);
     this.body.setPosition(bodyX, bodyY).setRotation(rot).setScale(S, S * sy);
     if (this.weapon && sp.weapon) {
       this.weapon.setPosition(sp.weapon.x + bodyX, sp.weapon.y + (bodyY - sp.bodyY)).setRotation(weaponA);

@@ -23,7 +23,7 @@ interface Timed {
   sy: number;
 }
 
-export type FloaterKind = 'hit' | 'crit' | 'hurt' | 'evade';
+export type FloaterKind = 'hit' | 'crit' | 'hurt' | 'evade' | 'heal' | 'level';
 
 /**
  * Pooled combat feedback. Nothing here allocates per frame: floaters, slashes,
@@ -121,8 +121,8 @@ export class Fx {
 
   floater(x: number, y: number, label: string, kind: FloaterKind): void {
     const f = this.floaters.find((o) => o.life <= 0) ?? this.floaters[0]!;
-    const color = kind === 'crit' ? '#ffb85c' : kind === 'hurt' ? '#ff6457' : kind === 'evade' ? '#9df0e6' : '#f3ead6';
-    const size = kind === 'crit' ? 28 : kind === 'evade' ? 16 : 20;
+    const color = { crit: '#ffb85c', hurt: '#ff6457', evade: '#9df0e6', heal: '#f2d27a', level: '#ffd98a', hit: '#f3ead6' }[kind];
+    const size = kind === 'crit' ? 28 : kind === 'level' ? 24 : kind === 'evade' ? 16 : 20;
     f.text
       .setText(label)
       .setColor(color)
@@ -130,7 +130,7 @@ export class Fx {
       .setPosition(x + (Math.random() - 0.5) * 10, y)
       .setVisible(true)
       .setAlpha(1);
-    f.life = f.max = kind === 'crit' ? 0.85 : 0.65;
+    f.life = f.max = kind === 'crit' || kind === 'level' ? 0.9 : 0.65;
     f.vy = kind === 'evade' ? -26 : -46;
     f.pop = kind === 'crit' ? 1.5 : 1.25;
   }
@@ -157,9 +157,10 @@ export class Fx {
     r.sy = 1;
   }
 
-  afterimage(x: number, y: number, flipped: boolean, rotation: number): void {
+  afterimage(x: number, y: number, flipped: boolean, rotation: number, bodyKey: string): void {
     const g = this.ghosts.find((o) => o.life <= 0) ?? this.ghosts[0]!;
     g.img
+      .setTexture(bodyKey)
       .setPosition(x, y - 3)
       .setOrigin(0.5, 1)
       .setVisible(true)

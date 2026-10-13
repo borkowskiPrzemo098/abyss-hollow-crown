@@ -12,7 +12,13 @@ export interface PolledInput {
 }
 
 const STICK_RADIUS = 52;
-const DEAD_ZONE = 0.14;
+const DEAD_ZONE = 0.12;
+/**
+ * Stick travel (fraction of the radius) at which the hero reaches full speed.
+ * A purely linear stick made speed depend on how far the thumb happened to drift,
+ * which read as "sometimes fast, sometimes slow". Past this point it's always full speed.
+ */
+const FULL_SPEED_AT = 0.45;
 
 const MOVE_KEYS: Record<string, [number, number]> = {
   KeyW: [0, -1],
@@ -27,10 +33,12 @@ const MOVE_KEYS: Record<string, [number, number]> = {
 const DODGE_KEYS = new Set(['Space', 'ShiftLeft', 'ShiftRight', 'KeyK']);
 const SKILL_KEYS = new Set(['KeyE', 'KeyQ', 'KeyJ']);
 const PAUSE_KEYS = new Set(['Escape', 'KeyP']);
+const SHEET_KEYS = new Set(['KeyC', 'Tab']);
 
 export class Controls {
   enabled = false;
   onPause: () => void = () => {};
+  onSheet: () => void = () => {};
   /** Fired on any first interaction (used to unlock audio on iOS). */
   onGesture: () => void = () => {};
 
@@ -124,8 +132,8 @@ export class Controls {
     if (m < DEAD_ZONE) {
       this.vx = this.vy = 0;
     } else {
-      // rescale past the dead zone so the first millimetres of travel still give fine control
-      const mag = (m - DEAD_ZONE) / (1 - DEAD_ZONE);
+      // a short ramp past the dead zone for fine positioning, then full speed
+      const mag = Math.min(1, (m - DEAD_ZONE) / (FULL_SPEED_AT - DEAD_ZONE));
       this.vx = (dx / len) * mag;
       this.vy = (dy / len) * mag;
     }
@@ -150,6 +158,11 @@ export class Controls {
     if (PAUSE_KEYS.has(e.code)) {
       e.preventDefault();
       if (!e.repeat) this.onPause();
+      return;
+    }
+    if (SHEET_KEYS.has(e.code)) {
+      e.preventDefault();
+      if (!e.repeat) this.onSheet();
       return;
     }
     if (!this.enabled) return;

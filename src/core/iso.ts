@@ -42,3 +42,17 @@ export function worldDirToScreenAngle(dx: number, dy: number): number {
 export function depthOf(x: number, y: number): number {
   return 100 + (x + y) * 10;
 }
+
+const AXIS_LEN = Math.hypot(HW, HH);
+
+/**
+ * Speed multiplier that evens out on-screen speed across directions (see
+ * COMMON.isoCompensation). (dx, dy) is a world direction; magnitude is ignored.
+ * Returns 1 along the world axes, < 1 for screen-horizontal, > 1 for screen-vertical.
+ */
+export function isoMoveScale(dx: number, dy: number, compensation: number): number {
+  const l = Math.hypot(dx, dy);
+  if (l < 1e-9 || compensation === 0) return 1;
+  const sl = Math.hypot(((dx - dy) / l) * HW, ((dx + dy) / l) * HH) / AXIS_LEN;
+  return Math.pow(sl, -compensation);
+}

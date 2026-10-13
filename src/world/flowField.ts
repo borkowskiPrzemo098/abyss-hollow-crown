@@ -21,6 +21,12 @@ export class FlowField {
     this.queue = new Int32Array(map.w * map.h);
   }
 
+  /** Forces a rebuild on the next setGoal (tiles changed, e.g. a door closed). */
+  invalidate(): void {
+    this.goalX = -1;
+    this.goalY = -1;
+  }
+
   /** Recomputes the field only when the goal tile actually changes. */
   setGoal(tx: number, ty: number): void {
     if (tx === this.goalX && ty === this.goalY) return;

@@ -1,9 +1,10 @@
 # ABYSS: The Hollow Crown
 
-Mroczny izometryczny action roguelite na telefon (PWA). Bohater atakuje sam — ty decydujesz,
-gdzie stoi, kiedy się przeturla i kiedy uderzy Rozłamem.
+Mroczny izometryczny dungeon crawler na telefon (PWA). Bohater atakuje sam — ty decydujesz,
+gdzie stoi, kiedy się przeturla i kiedy użyje umiejętności. Trzy piętra proceduralnych podziemi,
+dwie klasy, ulepszenia z każdej wyprawy i stałe rangi w Sanktuarium.
 
-**Status: Etap 1 — grywalny fundament** (arena z falami wrogów). Szczegóły: [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status: dungeon crawler — 3 piętra, 2 klasy, 4 umiejętności, 15 ulepszeń, zapis postępów.** Szczegóły: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Uruchomienie lokalne
 
@@ -28,7 +29,8 @@ z HTTPS lub localhost — do tego użyj wersji z GitHub Pages.)
 |---|---|---|
 | Ruch | lewy kciuk (joystick pojawia się tam, gdzie dotkniesz) | WASD / strzałki |
 | Unik | duży przycisk po prawej | Spacja / Shift |
-| Rozłam (umiejętność) | mniejszy przycisk nad unikiem | E / Q |
+| Umiejętność | mniejszy przycisk nad unikiem | E / Q |
+| Postać i statystyki | ikona postaci u góry | C |
 | Pauza | przycisk w prawym górnym rogu | Esc / P |
 | Atak | **automatyczny** | **automatyczny** |
 

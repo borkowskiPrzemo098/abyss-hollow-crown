@@ -6,10 +6,11 @@ import './styles.css';
 import Phaser from 'phaser';
 import { Sfx } from './audio/sfx';
 import { Controls } from './input/controls';
+import { SaveStore } from './meta/save';
+import { registerServiceWorker } from './pwa/register';
 import { BootScene } from './scenes/BootScene';
 import { GameScene, type Services } from './scenes/GameScene';
 import { Hud } from './ui/hud';
-import { registerServiceWorker } from './pwa/register';
 
 /** Render at device resolution (capped at 2× to protect fill-rate on phones). */
 const dpr = (): number => Math.min(window.devicePixelRatio || 1, 2);
@@ -22,19 +23,20 @@ const el = <T extends HTMLElement>(id: string): T => {
 
 async function boot(): Promise<void> {
   // Damage numbers are drawn on the canvas, so the face must be ready first.
-  const fonts = Promise.all([
-    document.fonts.load('800 20px "Alegreya Sans"'),
-    document.fonts.load('600 40px "Grenze Gotisch"'),
-  ]);
-  await Promise.race([fonts, new Promise((r) => setTimeout(r, 2500))]);
+  const fonts = Promise.all([document.fonts.load('800 20px "Alegreya Sans"'), document.fonts.load('600 40px "Grenze Gotisch"')]);
+  const save = new SaveStore();
+  await Promise.all([Promise.race([fonts, new Promise((r) => setTimeout(r, 2500))]), save.load()]);
 
   const app = el('app');
   const hud = new Hud();
   const sfx = new Sfx();
-  hud.setVolume(sfx.volume);
-  hud.setMuted(sfx.muted);
   const controls = new Controls(el('stick-zone'), el('stick'), el('stick-knob'), el('btn-dodge'), el('btn-skill'));
-  const services: Services = { hud, controls, sfx, dpr };
+  const services: Services = { hud, controls, sfx, save, dpr };
+
+  // Any gesture anywhere may unlock / resume audio (iOS needs a gesture after every interruption).
+  for (const type of ['pointerdown', 'touchend', 'click', 'keydown']) {
+    window.addEventListener(type, () => sfx.unlock(), { capture: true, passive: true });
+  }
 
   const size = () => ({ w: Math.max(1, app.clientWidth), h: Math.max(1, app.clientHeight) });
   const s0 = size();
@@ -71,6 +73,8 @@ async function boot(): Promise<void> {
   if (import.meta.env.DEV || new URLSearchParams(location.search).has('test')) {
     (window as unknown as { __abyss: unknown }).__abyss = {
       game,
+      sfx,
+      save,
       get scene() {
         return game.scene.getScene('game') as GameScene;
       },

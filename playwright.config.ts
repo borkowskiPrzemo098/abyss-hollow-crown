@@ -22,5 +22,9 @@ export default defineConfig({
       name: 'phone',
       use: { ...devices['Pixel 7'], channel: 'msedge', defaultBrowserType: 'chromium' },
     },
+    {
+      name: 'phone-landscape',
+      use: { ...devices['Pixel 7 landscape'], channel: 'msedge', defaultBrowserType: 'chromium' },
+    },
   ],
 });

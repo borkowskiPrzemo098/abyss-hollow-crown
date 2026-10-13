@@ -1,52 +1,37 @@
 # Roadmap
 
 ## ✅ Etap 0 — audyt i plan (2026-10-13)
-Środowisko: Node 24, npm 11, git, gh. Projekt od zera w `ABYSS-HOLLOW-CROWN/`.
-Dokumenty, konfiguracja Vite/TS/Vitest/Playwright, minimalna aplikacja.
 
 ## ✅ Etap 1 — grywalny fundament (2026-10-13)
-- [x] gra w przeglądarce (desktop + mobile), build produkcyjny, PWA (manifest, SW, ikony)
-- [x] izometryczna arena 22×22 (Przedsionek Popiołu): ściany, kolumny, koksowniki, krąg rytualny
-- [x] ruch bohatera, kolizje ze ścianami (poślizg, brak tunelowania)
-- [x] 2 typy wrogów z telegrafowanymi atakami (Wydrążony, Popielny Kolos), fale z eskalacją
-- [x] auto-atak najbliższego celu w zasięgu, stabilny targeting, brak ataku przez ściany, cleave
-- [x] unik z cooldownem, i-frames, buforem; Rozłam (AoE, odrzut, ogłuszenie, przerwanie)
-- [x] HP, obrażenia, krytyki, śmierć; hit-stop, błyski, iskry, liczby, wstrząs kamery, dźwięki syntezowane
-- [x] joystick dotykowy + przyciski; klawiatura; pauza (też automatyczna po ukryciu karty), restart areny
-- [x] głośność i wyciszenie (w pauzie)
-- [x] 50 testów logiki + 6 testów przeglądarkowych
+Arena, ruch, kolizje, auto-atak ze stabilnym celem, unik, Rozłam, telegrafy, efekty, sterowanie dotykowe, PWA.
 
-**Do sprawdzenia na fizycznym telefonie (nie było możliwe z tej maszyny):** płynność (FPS) na iPhone/Androidzie,
-wygoda kciuków i rozmiar przycisków, safe-area na telefonie z notchem, instalacja PWA (Safari „Do ekranu
-początkowego”, Chrome „Zainstaluj”), dźwięk po pierwszym dotknięciu na iOS, wibracja na Androidzie.
+## ✅ Etap „dungeon crawler” (2026-10-13) — zakres Etapów 2–5 przyspieszony na prośbę właściciela
+Zgłoszenie: chodzenie nierówne, miał być dungeon crawler, wybór postaci i umiejętności, brak dźwięku,
+brak statystyk z ulepszaniem.
+- [x] naprawa płynności ruchu (4 przyczyny — patrz GAME_DESIGN „Płynność ruchu”) + test regresyjny
+- [x] proceduralne podziemia: 3 piętra, 6 typów komnat (wejście, walka, elita, skarbiec, kapliczka, strażnica schodów),
+      kraty w drzwiach, mgła, minimapa, seed, walidacja przechodniości (180 pięter w teście bez błędu)
+- [x] 2 klasy bohaterów, 4 umiejętności, wybór przed wyprawą
+- [x] trzeci typ wroga: Akolita (dystans, pociski)
+- [x] XP, poziomy, wybór 1 z 3 spośród 15 ulepszeń, skrzynie, kapliczki, popiół
+- [x] karta statystyk (pauza / klawisz C)
+- [x] Sanktuarium: stałe rangi statystyk za popiół, zapis IndexedDB (wersja, kopia, obsługa uszkodzenia)
+- [x] dźwięk: ambient podziemi + ~25 sygnałów, poprawki iOS (tryb cichy, wznowienie po przerwaniu)
+- [x] boty balansujące całą wyprawę dla obu klas
+- [x] 87 testów logiki, 12 testów przeglądarkowych (desktop, telefon pion, telefon poziom)
 
-**Znane ograniczenia Etapu 1:**
-- Grafika to spójne, ale proceduralne placeholdery (postacie z kilku części, animacja kodem).
-- Ustawienia głośności nie są zapisywane (zapis = Etap 5, IndexedDB).
-- Offline: zweryfikowane `scripts/check-live.mjs` (Edge, emulacja telefonu) — gra startuje bez sieci po drugim wczytaniu. Nie sprawdzone na fizycznym iPhonie/Androidzie.
-- Jedna arena, brak nagród/XP/ulepszeń (Etap 2).
+**Do sprawdzenia na fizycznym telefonie:** płynność ruchu po poprawkach, dźwięk na iPhonie (w tym z włączonym
+trybem cichym — działa tylko na iOS 17+), wygoda kciuków w pionie i poziomie, instalacja PWA, wibracja.
 
-## ⏭ Etap 2 — pierwszy kompletny cykl walki (następny)
-- archetypy: dystansowy (pociski do uniknięcia), szarżujący (linia szarży), wspierający (tarcza/leczenie), obszarowy
-- XP z wrogów, poziom → wybór 1 z 3 ulepszeń (pierwsze 6–8 ulepszeń, testowanych pod kątem synergii)
-- podstawowe nagrody (dusze/okruchy) z animacją zbierania
-- pierwszy boss (Strażnik Pustej Korony) z 2 fazami i oknami kontry
-- ekran zwycięstwa i porażki z podsumowaniem
-- bot projektowy rozszerzony o nowych wrogów
+**Znane ograniczenia:** grafika to proceduralne placeholdery; brak bossa (ostatnie piętro kończy strażnica);
+boty w testach kitują słabiej niż człowiek, więc balans Wędrowca wymaga potwierdzenia w prawdziwej grze.
 
-## Etap 3 — pierwszy loch
-Generator pomieszczeń (8–12 typów), drzwi, spotkania, pokoje nagród, walidacja przechodniości, seed, koniec wyprawy.
+## ⏭ Następny etap — boss i różnorodność
+- Strażnik Pustej Korony na 3. piętrze: 2 fazy, wzorce ataków, okna kontry
+- wrogowie: szarżujący (linia szarży), wspierający (tarcza dla innych)
+- relikty (pasywne efekty z rzadkich skrzyń), pierwsze przedmioty
+- samouczek pierwszej komnaty
 
-## Etap 4 — rozwój roguelite
-Przedmioty, relikty, umiejętności, synergie — najpierw kilka dobrze zaprojektowanych, potem rozszerzanie.
-
-## Etap 5 — baza i trwały postęp
-IndexedDB z wersjonowaniem i kopią zapasową, odporność na uszkodzony zapis, Kuźnia / Sanktuarium / Archiwum.
-
-## Etap 6 — oprawa i UX
-Lepsze sprite'y/animacje, efekty, przejścia, audio, ekran startowy, ustawienia, tutorial.
-
-## Etap 7 — PWA i testy mobilne
-Instalacja, offline, wznowienie, orientacja, wydajność na słabszych telefonach.
-
-## Etap 8 — polish i balans
+## Później
+Kuźnia i Archiwum w bazie, talenty, więcej typów komnat (pułapki, wyzwania z nagrodą za ryzyko),
+finalna oprawa i muzyka, testy wydajności na słabszych telefonach, polish i balans.

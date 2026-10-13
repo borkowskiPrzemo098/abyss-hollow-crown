@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { HERO } from '../config/balance';
+import { blocksSight, tileAt, type ArenaMap } from '../world/arena';
 import { worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Simulation } from '../sim/simulation';
 import type { Enemy } from '../sim/types';
@@ -36,6 +36,7 @@ export class Overlays {
   private readonly chevron: Phaser.GameObjects.Image;
   private readonly flashes: StrikeFlash[] = [];
   private readonly pts: { x: number; y: number }[] = [];
+  private map: ArenaMap | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.ground = scene.add.graphics().setDepth(LAYER.telegraph);
@@ -53,6 +54,19 @@ export class Overlays {
     const t = this.top;
     g.clear();
     t.clear();
+    this.map = sim.map;
+
+    // the hero's Seal of the Void: an ember ring with a slow pulse; fades in its last second
+    for (const z of sim.zones) {
+      const fade = Math.min(1, z.life / 0.8);
+      const pulse = 0.5 + 0.5 * Math.sin(time * 6);
+      this.circle(g, z.x, z.y, z.r, PAL.ember, (0.08 + 0.05 * pulse) * fade, 0.75 * fade);
+      this.circle(g, z.x, z.y, z.r * 0.62, PAL.emberHot, 0, 0.35 * fade);
+      for (let k = 0; k < 6; k++) {
+        const a = time * 0.8 + (k * Math.PI) / 3;
+        this.arc(g, z.x, z.y, z.r * 0.82, a, a + 0.32, PAL.emberHot, 0.8 * fade, 2.2);
+      }
+    }
 
     for (const e of sim.enemies) {
       if (e.state === 'windup') {
@@ -126,7 +140,7 @@ export class Overlays {
 
     // dodge readiness ring under the hero: a quiet cue that rolling is available again
     if (h.state !== 'dead' && h.dodgeCd > 0) {
-      const p = 1 - h.dodgeCd / HERO.dodge.cooldown;
+      const p = 1 - h.dodgeCd / h.cls.dodge.cooldown;
       this.arc(g, h.x, h.y, h.r + 0.18, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2, PAL.bone, 0.28, 1.5);
     }
   }
@@ -158,11 +172,33 @@ export class Overlays {
         pts[i + 1]!.y = worldToScreenY(wx, wy);
       }
       this.polygon(g, n + 2, color, fillA, lineA);
+    } else if (shape.kind === 'bolt') {
+      // the ember's path, cut off where it will hit a wall
+      const len = this.traceLength(x, y, aim, shape.range) * Math.max(0.02, scale);
+      const w = shape.radius + 0.12;
+      const nx = -Math.sin(aim) * w;
+      const ny = Math.cos(aim) * w;
+      const ex = x + Math.cos(aim) * len;
+      const ey = y + Math.sin(aim) * len;
+      const corners = [x + nx, y + ny, ex + nx, ey + ny, ex - nx, ey - ny, x - nx, y - ny];
+      for (let i = 0; i < 4; i++) {
+        this.pts[i]!.x = worldToScreenX(corners[i * 2]!, corners[i * 2 + 1]!);
+        this.pts[i]!.y = worldToScreenY(corners[i * 2]!, corners[i * 2 + 1]!);
+      }
+      this.polygon(g, 4, color, fillA, lineA);
     } else {
       const cx = x + Math.cos(aim) * shape.offset;
       const cy = y + Math.sin(aim) * shape.offset;
       this.circle(g, cx, cy, shape.radius * Math.max(0.02, scale), color, fillA, lineA);
     }
+  }
+
+  private traceLength(x: number, y: number, aim: number, max: number): number {
+    if (!this.map) return max;
+    for (let d = 0.3; d < max; d += 0.2) {
+      if (blocksSight(tileAt(this.map, Math.floor(x + Math.cos(aim) * d), Math.floor(y + Math.sin(aim) * d)))) return d;
+    }
+    return max;
   }
 
   private circle(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, color: number, fillA: number, lineA: number): void {
