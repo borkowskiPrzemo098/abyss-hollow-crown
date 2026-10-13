@@ -3,7 +3,7 @@
 import { chromium } from '@playwright/test';
 
 const url = process.argv[2] ?? 'https://borkowskiprzemo098.github.io/abyss-hollow-crown/';
-const titleReady = () => window.__abyss?.scene?.mode === 'title';
+const titleReady = () => window.__abyss?.scene?.mode === 'menu';
 
 const browser = await chromium.launch({ channel: 'msedge' });
 const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
