@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07080a" />
+    <meta name="description" content="ABYSS: The Hollow Crown — mroczny izometryczny dungeon crawler na telefon." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ABYSS" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <title>ABYSS: The Hollow Crown</title>
+    <script type="module" crossorigin src="./assets/index-DCHRkhOG.js"></script>
+    <link rel="modulepreload" crossorigin href="./assets/phaser-D8EC1TLR.js">
+    <link rel="stylesheet" crossorigin href="./assets/index-DfgtaO9K.css">
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" /></symbol>
+        <symbol id="i-hero" viewBox="0 0 24 24"><path d="M12 3.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM5 20.5c.8-4.2 3.5-6.5 7-6.5s6.2 2.3 7 6.5" /></symbol>
+        <symbol id="i-dodge" viewBox="0 0 24 24"><path d="M4 17.5c2.2-6.4 7.4-9.6 15-9" /><path d="M15.5 4.5l4 4-4 4" /><path d="M3 11.5h3.5M5 7.5h3" /></symbol>
+        <symbol id="i-sunder" viewBox="0 0 24 24"><path d="M12 2.5v10.5M9 5.5h6M12 13l-1.6 2.6M12 13l1.6 2.6" /><path d="M2.5 20l3.5-1.6 2.2 1.8 2.6-2.4 2.4 2.4 2.6-2.4 2.2 1.8 3.5-1.6" /></symbol>
+        <symbol id="i-charge" viewBox="0 0 24 24"><path d="M9 6l7 6-7 6" /><path d="M14 6l7 6-7 6" /><path d="M2.5 9h4M2.5 15h4M1.5 12h5" /></symbol>
+        <symbol id="i-volley" viewBox="0 0 24 24"><path d="M4 20L20 4M4 20l8-15.5M4 20l15.5-8" /><path d="M16.5 3.5L20 4l.5 3.5" /></symbol>
+        <symbol id="i-seal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 6.5l1.7 3.6 3.9.4-2.9 2.6.8 3.9-3.5-2-3.5 2 .8-3.9-2.9-2.6 3.9-.4z" /></symbol>
+        <symbol id="i-ash" viewBox="0 0 24 24"><path d="M12 3c2 3.5 5 5.4 5 9.5a5 5 0 0 1-10 0C7 8.4 10 6.5 12 3z" /><path d="M12 11.5c.9 1.4 2 2.3 2 3.9a2 2 0 0 1-4 0c0-1.6 1.1-2.5 2-3.9z" /></symbol>
+        <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></symbol>
+        <symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 8h12l1 12H5z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></symbol>
+        <symbol id="it-sword" viewBox="0 0 24 24"><path d="M5 19L18 6l1.5-1.5M8 12.5l3.5 3.5M5 19l-1.5 1.5" /></symbol>
+        <symbol id="it-axe" viewBox="0 0 24 24"><path d="M6 20L16 6" /><path d="M13 4c4 0 6.5 3 6.5 6.5-2.6 0-4.8-1.1-6.5-2.8z" /></symbol>
+        <symbol id="it-mace" viewBox="0 0 24 24"><path d="M5 20l9-11" /><circle cx="16" cy="7" r="3.4" /><path d="M16 2v1.5M21 7h-1.5M19.6 3.4l-1 1" /></symbol>
+        <symbol id="it-staff" viewBox="0 0 24 24"><path d="M6 21l9-13" /><path d="M15 3l3 3-3 5-3-5z" /></symbol>
+        <symbol id="it-wand" viewBox="0 0 24 24"><path d="M5 19L16 8" /><path d="M17.5 3l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" /></symbol>
+        <symbol id="it-crystal" viewBox="0 0 24 24"><path d="M7 21l6-11" /><path d="M13 2l5 4-2 6-5-1-1-5z" /></symbol>
+        <symbol id="it-hood" viewBox="0 0 24 24"><path d="M5 20c0-8 3-14 7-14s7 6 7 14" /><path d="M9 14c1 2 5 2 6 0" /></symbol>
+        <symbol id="it-helm" viewBox="0 0 24 24"><path d="M5 16a7 7 0 0 1 14 0v3H5z" /><path d="M8 14h8M12 5v4" /></symbol>
+        <symbol id="it-mail" viewBox="0 0 24 24"><path d="M6 6l3-2h6l3 2-1 14H7z" /><path d="M9 10h6M9 13h6M9 16h6" /></symbol>
+        <symbol id="it-plate" viewBox="0 0 24 24"><path d="M6 6l3-2h6l3 2v6c0 4-3 7-6 8-3-1-6-4-6-8z" /><path d="M12 4v16" /></symbol>
+        <symbol id="it-cloak" viewBox="0 0 24 24"><path d="M8 4h8l3 16-4-2-3 3-3-3-4 2z" /></symbol>
+        <symbol id="it-talisman" viewBox="0 0 24 24"><path d="M7 3c0 4 2 7 5 7s5-3 5-7" /><path d="M12 10l3 4-3 6-3-6z" /></symbol>
+        <symbol id="it-eye" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z" /><circle cx="12" cy="12" r="2.5" /></symbol>
+        <symbol id="it-signet" viewBox="0 0 24 24"><circle cx="12" cy="14.5" r="5.5" /><path d="M9 5h6l1 3.5H8z" /></symbol>
+        <symbol id="it-band" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="4.4" /></symbol>
+        <symbol id="fx-frostShell" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5" /></symbol>
+        <symbol id="fx-barrier" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /></symbol>
+        <symbol id="fx-frenzy" viewBox="0 0 24 24"><path d="M13 2L5 14h6l-1 8 8-12h-6z" /></symbol>
+        <symbol id="i-crush" viewBox="0 0 24 24"><path d="M6 4h12v6H6z" /><path d="M12 10v6" /><path d="M8.5 21l3.5-5 3.5 5" /></symbol>
+        <symbol id="i-bastion" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M12 8v8M8.5 11.5h7" /></symbol>
+        <symbol id="i-warcry" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.8" /><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.5 4.5a10.6 10.6 0 0 0 0 15M19.5 4.5a10.6 10.6 0 0 1 0 15" /></symbol>
+        <symbol id="i-axe" viewBox="0 0 24 24"><path d="M7 21L17 6" /><path d="M14 4c4 0 6.5 3 6.5 6.5-2.6 0-4.8-1.1-6.5-2.8z" /><path d="M2.5 9h4M1.5 13h3.5" /></symbol>
+        <symbol id="i-hook" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2" /><path d="M3 12h6M21 12h-6M12 3v6M12 21v-6" /><path d="M5.5 9.5L3 12l2.5 2.5M18.5 9.5L21 12l-2.5 2.5" /></symbol>
+        <symbol id="i-banner" viewBox="0 0 24 24"><path d="M7 21V3" /><path d="M7 4h11l-3 4 3 4H7" /><path d="M4 21h8" /></symbol>
+        <symbol id="i-whirl" viewBox="0 0 24 24"><path d="M5.5 9A7.5 7.5 0 0 1 19 8.5M19 4v4.5h-4.5M18.5 15A7.5 7.5 0 0 1 5 15.5M5 20v-4.5h4.5" /><path d="M12 9.5v5M9.5 12h5" /></symbol>
+        <symbol id="i-pact" viewBox="0 0 24 24"><path d="M12 3c3 4.5 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0C6.5 10 9 7.5 12 3z" /><path d="M12 11v5M9.5 13.5h5" /></symbol>
+        <symbol id="i-snipe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5" /><path d="M12 2v6M12 16v6M2 12h6M16 12h6" /><circle cx="12" cy="12" r="0.8" /></symbol>
+        <symbol id="i-blink" viewBox="0 0 24 24"><path d="M3 12h3M8.5 12h3" /><path d="M14.5 6.5L20 12l-5.5 5.5" /></symbol>
+        <symbol id="i-ward" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><circle cx="12" cy="12" r="2.6" /></symbol>
+        <symbol id="i-frost" viewBox="0 0 24 24"><path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5" /></symbol>
+        <symbol id="i-sentry" viewBox="0 0 24 24"><path d="M12 3l4 5-4 5-4-5z" /><path d="M12 13v5M9 18h6M7.5 21h9" /></symbol>
+        <symbol id="i-mine" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.6" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" /></symbol>
+        <symbol id="i-starfall" viewBox="0 0 24 24"><path d="M15 3l1.5 3.3 3.5.5-2.6 2.4.7 3.5L15 11l-3.1 1.7.7-3.5L10 6.8l3.5-.5z" /><path d="M8 13l-4 4M11 17l-4 4" /></symbol>
+        <symbol id="i-overload" viewBox="0 0 24 24"><path d="M13 2L5 14h6l-1 8 8-12h-6z" /><circle cx="12" cy="12" r="10" /></symbol>
+        <symbol id="fx-guard" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /><path d="M12 8v8M8.5 11.5h7" /></symbol>
+        <symbol id="fx-pact" viewBox="0 0 24 24"><path d="M12 3c3 4.5 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0C6.5 10 9 7.5 12 3z" /></symbol>
+        <symbol id="fx-shield" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.5" /></symbol>
+        <symbol id="fx-overload" viewBox="0 0 24 24"><path d="M13 2L5 14h6l-1 8 8-12h-6z" /><circle cx="12" cy="12" r="10" /></symbol>
+      </defs>
+    </svg>
+
+    <div id="app">
+      <div id="game"></div>
+      <div id="vignette" aria-hidden="true"></div>
+      <div id="hurt" aria-hidden="true"></div>
+      <div id="fade" aria-hidden="true"><p id="fade-text"></p></div>
+
+      <div id="hud" hidden>
+        <div class="hud-top">
+          <div class="vitals">
+            <div id="hp" class="hp" role="meter" aria-label="Zdrowie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+              <div id="hp-ghost" class="hp-ghost"></div>
+              <div id="hp-fill" class="hp-fill"></div>
+              <span id="hp-text" class="hp-text">100</span>
+            </div>
+            <div class="xp" role="meter" aria-label="Doświadczenie" id="xp"><div id="xp-fill" class="xp-fill"></div></div>
+            <p class="hud-line">
+              <span class="lvl">Poz. <b id="lvl">1</b></span>
+              <span class="ash"><svg aria-hidden="true"><use href="#i-ash" /></svg><b id="ash">0</b></span>
+            </p>
+            <p class="where" id="where"></p>
+            <div id="fx-chips" class="fx-chips" aria-label="Efekty ekwipunku"></div>
+          </div>
+          <div id="boss-bar" class="boss-bar" hidden>
+            <p id="boss-name" class="boss-name"></p>
+            <div class="boss-hp"><div id="boss-fill" class="boss-fill"></div></div>
+            <p id="boss-title" class="boss-title"></p>
+          </div>
+          <div class="hud-right">
+            <div class="hud-buttons">
+              <button id="btn-bag" class="icon-btn" type="button" aria-label="Ekwipunek"><svg aria-hidden="true"><use href="#i-bag" /></svg></button>
+              <button id="btn-hero" class="icon-btn" type="button" aria-label="Postać i statystyki"><svg aria-hidden="true"><use href="#i-hero" /></svg></button>
+              <button id="btn-pause" class="icon-btn" type="button" aria-label="Pauza"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
+            </div>
+            <canvas id="minimap" class="minimap" width="300" height="200" aria-label="Mapa poziomu"></canvas>
+          </div>
+        </div>
+
+        <div id="toast" class="toast" aria-live="polite"></div>
+
+        <div id="banner" class="banner" aria-live="polite">
+          <p id="banner-title" class="banner-title"></p>
+          <p id="banner-sub" class="banner-sub"></p>
+        </div>
+
+        <div id="stick-zone" class="stick-zone" aria-hidden="true"></div>
+        <div id="stick" class="stick" aria-hidden="true"><div id="stick-knob" class="stick-knob"></div></div>
+
+        <div class="actions">
+          <button id="btn-skill" class="act act-skill act-skill1 is-ready" type="button" aria-label="Umiejętność 1">
+            <svg aria-hidden="true"><use id="skill-icon" href="#i-sunder" /></svg>
+            <span id="skill-cd" class="cd"></span>
+            <kbd class="key">E</kbd>
+          </button>
+          <button id="btn-skill2" class="act act-skill act-skill2 is-ready" type="button" aria-label="Umiejętność 2" hidden>
+            <svg aria-hidden="true"><use id="skill2-icon" href="#i-sunder" /></svg>
+            <span id="skill2-cd" class="cd"></span>
+            <kbd class="key">R</kbd>
+          </button>
+          <button id="btn-skill3" class="act act-skill act-skill3 is-ready" type="button" aria-label="Umiejętność 3" hidden>
+            <svg aria-hidden="true"><use id="skill3-icon" href="#i-sunder" /></svg>
+            <span id="skill3-cd" class="cd"></span>
+            <kbd class="key">F</kbd>
+          </button>
+          <button id="btn-dodge" class="act act-dodge is-ready" type="button" aria-label="Unik">
+            <svg aria-hidden="true"><use href="#i-dodge" /></svg>
+            <span id="dodge-cd" class="cd"></span>
+            <kbd class="key">Spacja</kbd>
+          </button>
+        </div>
+      </div>
+
+      <section id="screen-title" class="screen screen-title" aria-labelledby="title-h">
+        <div class="title-block">
+          <h1 id="title-h" class="title"><span class="title-main">Abyss</span><span class="title-sub">The Hollow Crown</span></h1>
+          <p class="lore">Korona leży pusta od stu lat. Pod ruinami ciągną się podziemia, a coś na ich dnie wciąż jej szuka. Zejdź po trzech poziomach Otchłani i wróć z popiołem.</p>
+          <div class="menu-actions">
+            <button id="btn-continue" class="btn btn-primary" type="button" hidden>Wznów wyprawę</button>
+            <button id="btn-new" class="btn btn-primary" type="button">Nowa wyprawa</button>
+            <button id="btn-inv" class="btn btn-ghost" type="button">Ekwipunek</button>
+            <button id="btn-codex" class="btn btn-ghost" type="button">Postacie i umiejętności</button>
+            <button id="btn-sanct" class="btn btn-ghost" type="button">Sanktuarium <span class="pill"><svg aria-hidden="true"><use href="#i-ash" /></svg><b id="title-ash">0</b></span></button>
+          </div>
+          <p class="record" id="continue-note" hidden></p>
+          <p class="record" id="record"></p>
+          <dl class="how how-touch">
+            <div><dt>Lewy kciuk</dt><dd>ruch</dd></div>
+            <div><dt>Prawy kciuk</dt><dd>unik i umiejętność</dd></div>
+            <div><dt>Atak</dt><dd>automatyczny — ty wybierasz pozycję</dd></div>
+          </dl>
+          <dl class="how how-keys">
+            <div><dt>WASD</dt><dd>ruch</dd></div>
+            <div><dt>Spacja</dt><dd>unik</dd></div>
+            <div><dt>E</dt><dd>umiejętność</dd></div>
+            <div><dt>C</dt><dd>postać</dd></div>
+            <div><dt>Esc</dt><dd>pauza</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section id="screen-hero" class="screen screen-pick" aria-labelledby="hero-h" hidden>
+        <div class="pick">
+          <header class="pick-head">
+            <button class="icon-btn back" type="button" data-back aria-label="Wróć"><svg aria-hidden="true"><use href="#i-back" /></svg></button>
+            <h2 id="hero-h" class="pick-title">Wybierz bohatera</h2>
+          </header>
+          <div id="hero-cards" class="cards cards-2"></div>
+        </div>
+      </section>
+
+      <section id="screen-skill" class="screen screen-pick screen-loadout" aria-labelledby="skill-h" hidden>
+        <div class="pick">
+          <header class="pick-head">
+            <button class="icon-btn back" type="button" data-back aria-label="Wróć"><svg aria-hidden="true"><use href="#i-back" /></svg></button>
+            <h2 id="skill-h" class="pick-title">Umiejętności</h2>
+          </header>
+          <p class="pick-note" id="skill-note"></p>
+          <div id="skill-slots" class="loadout-slots" aria-label="Wyposażone umiejętności"></div>
+          <p class="loadout-msg" id="skill-msg" role="status" aria-live="polite"></p>
+          <div id="skill-cards" class="skill-list"></div>
+          <div class="loadout-foot">
+            <button id="btn-start" class="btn btn-primary" type="button">Wyrusz</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-choice" class="screen screen-pick screen-choice" aria-labelledby="choice-h" hidden>
+        <div class="pick">
+          <header class="pick-head">
+            <h2 id="choice-h" class="pick-title">Nowy poziom</h2>
+          </header>
+          <p class="pick-note" id="choice-note">Wybierz jedno ulepszenie.</p>
+          <div id="choice-cards" class="cards cards-3"></div>
+        </div>
+      </section>
+
+      <section id="screen-pause" class="screen screen-panel" aria-labelledby="pause-h" hidden>
+        <div class="panel panel-wide">
+          <div class="panel-col">
+            <h2 id="pause-h" class="panel-title">Pauza</h2>
+            <div class="panel-actions">
+              <button id="btn-resume" class="btn btn-primary" type="button">Wznów</button>
+              <button id="btn-save-quit" class="btn btn-ghost" type="button">Zapisz i wyjdź</button>
+              <button id="btn-abandon" class="btn btn-ghost" type="button">Porzuć wyprawę</button>
+            </div>
+            <div class="settings">
+              <button id="btn-mute" class="btn btn-toggle" type="button" aria-pressed="false"><span class="label">Dźwięk: włączony</span></button>
+              <label class="slider"><span>Głośność</span><input id="volume" type="range" min="0" max="100" step="5" value="70" /></label>
+            </div>
+          </div>
+          <div class="panel-col sheet" id="sheet" aria-label="Statystyki bohatera"></div>
+        </div>
+      </section>
+
+      <section id="screen-sanct" class="screen screen-pick" aria-labelledby="sanct-h" hidden>
+        <div class="pick">
+          <header class="pick-head">
+            <button class="icon-btn back" type="button" data-back aria-label="Wróć"><svg aria-hidden="true"><use href="#i-back" /></svg></button>
+            <h2 id="sanct-h" class="pick-title">Sanktuarium</h2>
+            <span class="pill pill-big"><svg aria-hidden="true"><use href="#i-ash" /></svg><b id="sanct-ash">0</b></span>
+          </header>
+          <p class="pick-note">Popiół z wypraw zamieniasz tu w trwałą siłę. Działa na obu bohaterów.</p>
+          <div id="ranks" class="ranks"></div>
+        </div>
+      </section>
+
+      <section id="screen-inv" class="screen screen-pick" aria-labelledby="inv-h" hidden>
+        <div class="pick inv">
+          <header class="pick-head">
+            <button class="icon-btn back" type="button" data-back aria-label="Wróć"><svg aria-hidden="true"><use href="#i-back" /></svg></button>
+            <h2 id="inv-h" class="pick-title">Ekwipunek</h2>
+            <div id="inv-tabs" class="tabs" role="tablist"></div>
+            <span class="pill pill-big"><svg aria-hidden="true"><use href="#i-ash" /></svg><b id="inv-ash">0</b></span>
+          </header>
+          <div class="inv-grid">
+            <div class="inv-left">
+              <div id="inv-slots" class="slots"></div>
+              <dl id="inv-stats" class="inv-stats"></dl>
+            </div>
+            <div class="inv-right">
+              <p class="inv-count" id="inv-count"></p>
+              <div id="inv-bag" class="bag"></div>
+              <div id="inv-detail" class="detail" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-codex" class="screen screen-pick" aria-labelledby="codex-h" hidden>
+        <div class="pick codex">
+          <header class="pick-head">
+            <button class="icon-btn back" type="button" data-back aria-label="Wróć"><svg aria-hidden="true"><use href="#i-back" /></svg></button>
+            <h2 id="codex-h" class="pick-title">Postacie</h2>
+            <div id="codex-tabs" class="tabs" role="tablist"></div>
+          </header>
+          <div id="codex-head" class="codex-head"></div>
+          <div id="codex-skills" class="codex-skills"></div>
+          <div id="codex-rules" class="codex-rules"></div>
+        </div>
+      </section>
+
+      <section id="screen-end" class="screen screen-panel" aria-labelledby="end-h" hidden>
+        <div class="panel">
+          <h2 id="end-h" class="panel-title">Poległeś</h2>
+          <p class="panel-note" id="end-note"></p>
+          <dl class="stats">
+            <div><dt>Poziom podziemi</dt><dd id="end-floor">1</dd></div>
+            <div><dt>Pokonani</dt><dd id="end-kills">0</dd></div>
+            <div><dt>Poziom bohatera</dt><dd id="end-level">1</dd></div>
+            <div><dt>Czas</dt><dd id="end-time">0:00</dd></div>
+          </dl>
+          <p class="gain"><svg aria-hidden="true"><use href="#i-ash" /></svg>Zachowany popiół: <b id="end-ash">0</b></p>
+          <div id="end-floors" class="end-loot"></div>
+          <div id="end-unlocked" class="end-loot"></div>
+          <div id="end-loot" class="end-loot"></div>
+          <div class="panel-actions">
+            <button id="btn-again" class="btn btn-primary" type="button">Nowa wyprawa</button>
+            <button id="btn-end-sanct" class="btn btn-ghost" type="button">Sanktuarium</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-corrupt" class="screen screen-panel" aria-labelledby="corrupt-h" hidden>
+        <div class="panel">
+          <h2 id="corrupt-h" class="panel-title panel-title-sm">Zapis jest uszkodzony</h2>
+          <p class="panel-note">Nie udało się odczytać postępów z tej przeglądarki. Możesz grać dalej bez zapisywania albo świadomie zacząć od zera — to usunie stary zapis.</p>
+          <div class="panel-actions">
+            <button id="btn-nosave" class="btn btn-primary" type="button">Graj bez zapisu</button>
+            <button id="btn-wipe" class="btn btn-ghost" type="button">Zacznij od nowa</button>
+          </div>
+        </div>
+      </section>
+
+      <div id="fatal" class="fatal" hidden><p></p></div>
+    </div>
+  </body>
+</html>
