@@ -37,5 +37,5 @@ Po każdej zmianie: `npm test`, `npm run build`, `npm run test:e2e`. Wszystko mu
 ## Deploy
 
 `npm run deploy` → testy + build + push `dist/` na gałąź `gh-pages` (źródło GitHub Pages).
-To `gh` token nie ma scope `workflow`, dlatego nie używamy GitHub Actions.
+Token `gh` nie ma scope `workflow`, dlatego nie używamy GitHub Actions.
 Przy zmianie powłoki aplikacji podbij `VERSION` w `public/sw.js`.
