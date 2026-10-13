@@ -72,7 +72,7 @@ Po ciosie faza odpoczynku = okno kontry. Z każdym piętrem: +30% HP, +15% obra�
 ## Ekwipunek (v0.3)
 5 slotów: broń (Strażnik: miecz/topór/buzdygan; Wędrowiec: laska/różdżka/kostur), hełm, zbroja, amulet, pierścień.
 Rzadkości: zwykły (1 cecha), rzadki (2), epicki (3), legendarny (3 + unikalny efekt). Liczby rosną z poziomem przedmiotu
-(= piętro, na którym wypadł). Przedmioty zostają między wyprawami; nadmiar rozbijasz na popiół. Szczegóły i wartości: .
+(= piętro, na którym wypadł). Przedmioty zostają między wyprawami; nadmiar rozbijasz na popiół. Szczegóły i wartości: `src/config/items.ts`.
 
 ## Poziomy podziemi (v0.3)
 | Piętro | Biom | Nowi wrogowie | Pułapki | Boss |
