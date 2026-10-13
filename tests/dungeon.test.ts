@@ -149,7 +149,8 @@ describe('dungeon director', () => {
     expect(sim.time).toBeGreaterThan(t);
     autoChoose(sim);
     run(sim, 1);
-    expect(sim.objects.filter((o) => o.kind === 'chest' && !o.used)).toHaveLength(0);
+    // (other rooms of the floor hold chests of their own now, so only this room's chest is checked)
+    expect(sim.objects.filter((o) => o.kind === 'chest' && !o.used && o.roomId === r.id)).toHaveLength(0);
   });
 
   it('stairs only work after the exit room is cleared, then end the floor', () => {

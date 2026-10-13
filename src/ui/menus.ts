@@ -6,6 +6,7 @@ import { SKILLS, SKILL_ORDER, SKILL_RULES, type SkillId, type SkillRole } from '
 import { BASES, RARITY, type Item } from '../config/items';
 import { UPGRADES, type UpgradeId } from '../config/upgrades';
 import { isUnlocked, unlockProgress, unlockText } from '../meta/loadout';
+import { describeRun, type FloorRecord } from '../meta/runSave';
 import { nextRankCost, type SaveData } from '../meta/save';
 import type { Choice, ChoiceId, Hero } from '../sim/types';
 import { $ } from './hud';
@@ -14,6 +15,8 @@ export type ScreenId = 'title' | 'hero' | 'skill' | 'choice' | 'pause' | 'sanct'
 
 export interface MenuActions {
   newRun(): void;
+  continueRun(): void;
+  saveAndQuit(): void;
   pickHero(id: HeroId): void;
   /** Tap on a skill (or on a worn one in a slot): wear it or take it off. */
   toggleSkill(id: SkillId): void;
@@ -42,6 +45,8 @@ export interface RunSummary {
   loot: Item[];
   /** Skills this run unlocked. */
   unlocked: SkillId[];
+  /** The floors of this run, with their real play time. */
+  floors: FloorRecord[];
 }
 
 const SCREENS: ScreenId[] = ['title', 'hero', 'skill', 'choice', 'pause', 'sanct', 'inv', 'codex', 'end', 'corrupt'];
@@ -72,6 +77,8 @@ export class Menus {
 
   constructor(act: MenuActions, private readonly portrait: (key: string) => string) {
     $('#btn-new').addEventListener('click', () => act.newRun());
+    $('#btn-continue').addEventListener('click', () => act.continueRun());
+    $('#btn-save-quit').addEventListener('click', () => act.saveAndQuit());
     $('#btn-sanct').addEventListener('click', () => act.openSanctuary());
     $('#btn-inv').addEventListener('click', () => act.openInventory());
     $('#btn-codex').addEventListener('click', () => act.openCodex());
@@ -138,6 +145,11 @@ export class Menus {
 
   renderTitle(save: SaveData, saving: boolean): void {
     $('#title-ash').textContent = String(save.ash);
+    // a run put down earlier can be picked up from its last calm moment
+    const run = saving ? save.run : null;
+    $('#btn-continue').hidden = !run;
+    $('#continue-note').hidden = !run;
+    if (run) $('#continue-note').textContent = `${describeRun(run)} — „Nowa wyprawa” zastąpi ten zapis.`;
     const s = save.stats;
     $('#record').textContent = !saving
       ? 'Postęp nie jest zapisywany w tej sesji.'
@@ -450,6 +462,12 @@ export class Menus {
     const s = Math.floor(r.seconds % 60);
     $('#end-time').textContent = `${m}:${String(s).padStart(2, '0')}`;
     $('#end-ash').textContent = String(r.ashKept);
+    const clock = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+    $('#end-floors').innerHTML = r.floors.length
+      ? '<p class="end-loot-h">Czas pięter</p><ul>' +
+        r.floors.map((f) => `<li>Piętro ${f.depth} · ${clock(f.seconds)} · komnaty ${f.roomsVisited}/${f.roomsTotal} · starcia ${f.fights} · wrogowie ${f.kills}${f.completed ? '' : ' · przerwane'}</li>`).join('') +
+        '</ul>'
+      : '';
     $('#end-unlocked').innerHTML = r.unlocked.length
       ? '<p class="end-loot-h">Odblokowane umiejętności</p><ul>' + r.unlocked.map((id) => '<li style="--r:var(--ember-hot)">' + icon(id) + SKILLS[id].name + '</li>').join('') + '</ul>'
       : '';

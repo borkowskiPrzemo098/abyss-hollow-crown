@@ -5,6 +5,7 @@ import { isSkillUpgradeId } from '../config/skillUpgrades';
 import { NO_PROGRESS, type HeroProgress, type SkillId } from '../config/skills';
 import { isItem, salvageValue } from '../sim/loot';
 import { canAdd, newlyUnlocked, sanitizeLoadout, type LoadoutError } from './loadout';
+import { parseFloorRecord, parseRunSave, type FloorRecord, type RunSave } from './runSave';
 
 /**
  * Persistent progress, stored in IndexedDB.
@@ -13,7 +14,7 @@ import { canAdd, newlyUnlocked, sanitizeLoadout, type LoadoutError } from './loa
  *  - A failed or corrupted read never overwrites good data: the game keeps
  *    running on defaults and only replaces the save after an explicit choice.
  */
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export type Loadout = Record<Slot, string | null>;
 
@@ -34,7 +35,13 @@ export interface SaveData {
    * which are not saved either); this list only remembers which ones the player has seen.
    */
   codex: string[];
+  /** A run put down at a calm moment, to be picked up again; null when there is none (or it was damaged). */
+  run: RunSave | null;
+  /** The last floors played, newest last: how long they really took. */
+  floorLog: FloorRecord[];
 }
+
+export const FLOOR_LOG_MAX = 40;
 
 const emptyLoadout = (): Loadout => ({ weapon: null, helmet: null, armor: null, amulet: null, ring: null });
 
@@ -49,6 +56,8 @@ export function defaultSave(): SaveData {
     progress: { warden: { ...NO_PROGRESS }, wanderer: { ...NO_PROGRESS } },
     loadout: { warden: sanitizeLoadout('warden', [], NO_PROGRESS), wanderer: sanitizeLoadout('wanderer', [], NO_PROGRESS) },
     codex: [],
+    run: null,
+    floorLog: [],
   };
 }
 
@@ -118,6 +127,9 @@ export function parseSave(raw: unknown): SaveData | null {
   }
   // v4: the codex. Anything unknown or repeated is dropped; older saves start with an empty one.
   if (Array.isArray(r.codex)) out.codex = [...new Set(r.codex.filter(isSkillUpgradeId))];
+  // v5: a saved run. A damaged or outdated one is simply dropped; it never costs the player anything else.
+  out.run = parseRunSave(r.run);
+  if (Array.isArray(r.floorLog)) out.floorLog = r.floorLog.map(parseFloorRecord).filter((f): f is FloorRecord => f !== null).slice(-FLOOR_LOG_MAX);
   return out;
 }
 
@@ -216,6 +228,12 @@ export function buyRank(save: SaveData, id: RankId): boolean {
   save.ash -= cost;
   save.ranks[id] += 1;
   return true;
+}
+
+/** Adds a finished floor to the log of how long floors take (oldest dropped past the limit). */
+export function logFloor(save: SaveData, rec: FloorRecord): void {
+  save.floorLog.push(rec);
+  if (save.floorLog.length > FLOOR_LOG_MAX) save.floorLog.splice(0, save.floorLog.length - FLOOR_LOG_MAX);
 }
 
 /** Banks a finished run into the save. */

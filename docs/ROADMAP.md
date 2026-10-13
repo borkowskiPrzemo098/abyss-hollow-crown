@@ -42,3 +42,7 @@ Do sprawdzenia na telefonie: rozmieszczenie trzech przycisków pod kciukiem i cz
 
 ## ✅ v0.4 / etap 3 — statusy i synergie
 5 statusów, 5 reakcji, limity CC i odporności bossów, 48 nowych testów logiki + test w przeglądarce.
+
+## ✅ v0.5 — długie piętra
+Generator trasy głównej i odnóg, nowe typy pokoi, spotkania w stylach, minimapa śledząca bohatera, renderowanie na żądanie z ukrywaniem poza kamerą,
+zapis i wznowienie wyprawy, pomiar czasu pięter w grze. Pomiary: reports/ (przed: before.json, po: after.json, after-full.json).

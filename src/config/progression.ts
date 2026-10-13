@@ -2,9 +2,12 @@
  * Progression: in-run levels (XP) and the permanent Sanctuary ranks paid with ash.
  */
 
-/** XP needed to go from `level` to `level + 1`. */
+/**
+ * XP needed to go from `level` to `level + 1`. Floors are long (a hundred and more kills each), so a level costs
+ * more than it did on the short floors: about five to seven levels per floor, not nine.
+ */
 export function xpToNext(level: number): number {
-  return 16 + (level - 1) * 10;
+  return 30 + (level - 1) * 22;
 }
 
 export const RUN = {

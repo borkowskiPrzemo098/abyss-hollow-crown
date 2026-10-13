@@ -126,6 +126,7 @@ export class EntityViews {
           glow = this.take('light').setScale(3.2 / RES, 1.7 / RES).setTint(PAL.ember).setBlendMode(Phaser.BlendModes.ADD).setPosition(sx, sy).setDepth(LAYER.groundLight);
         } else {
           img = this.take(o.kind === 'chest' ? 'chest' : 'shrine').setOrigin(0.5, 1).setPosition(sx, sy + 8).setDepth(depthOf(o.x, o.y));
+          if (o.kind === 'altar') img.setTint(0xc8556a); // the altar of sacrifice is a shrine in blood red
           glow = this.take('light').setScale(2.6 / RES, 1.4 / RES).setTint(o.kind === 'chest' ? PAL.emberHot : PAL.gold).setBlendMode(Phaser.BlendModes.ADD).setPosition(sx, sy).setDepth(LAYER.groundLight);
         }
         v = { img, glow, kind: o.kind };
@@ -138,6 +139,7 @@ export class EntityViews {
         if (o.used) v.img.setTint(0x6a6a74);
         else v.img.clearTint();
       }
+      if (o.kind === 'altar') v.img.setTint(o.used ? 0x6a6a74 : 0xc8556a);
       if (o.kind === 'stairs') v.img.setAlpha(o.active ? 1 : 0.45);
       if (v.glow) {
         const lit = visible && o.active && !o.used;

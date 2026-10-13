@@ -488,3 +488,110 @@ test('character menu: every skill with its effect, unlock requirement and upgrad
   await expect(page.locator('#screen-title')).toBeVisible();
   expect(errors, errors.join('\n')).toEqual([]);
 });
+
+test('a run can be put down and picked up again, even after the page is reloaded', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  await expect(page.locator('#btn-continue')).toBeHidden();
+  await startRun(page, 'warden', 'sunder');
+  // some progress: a level, ash, a few steps
+  await game(page, '(s.sim.grantXp(40), 0)');
+  await expect(page.locator('#screen-choice')).toBeVisible();
+  await page.locator('#choice-cards .card').first().click();
+  await expect(page.locator('#hud')).toBeVisible();
+  await game(page, '(s.sim.ash = 17, s.sim.hero.x += 1.5, s.sim.hero.px = s.sim.hero.x, 0)');
+  const before = await game<{ level: number; x: number; y: number; ash: number; skills: string[] }>(
+    page,
+    '({ level: s.sim.hero.level, x: s.sim.hero.x, y: s.sim.hero.y, ash: s.sim.ash, skills: s.sim.hero.skills.map((k) => k.def.id) })',
+  );
+  expect(before.level).toBeGreaterThanOrEqual(2);
+
+  // pause (which also writes a checkpoint), save and leave
+  await page.locator('#btn-pause').click();
+  await expect(page.locator('#screen-pause')).toBeVisible();
+  await page.locator('#btn-save-quit').click();
+  await expect(page.locator('#screen-title')).toBeVisible();
+  await expect(page.locator('#btn-continue')).toBeVisible();
+  await expect(page.locator('#continue-note')).toContainText('piętro 1');
+  await page.screenshot({ path: info.outputPath('title-with-saved-run.png') });
+
+  // the save is on disk, not in memory: reload the page and it is still there
+  await page.reload();
+  await page.waitForFunction(() => (window as unknown as { __abyss?: { scene?: { mode?: string } } }).__abyss?.scene?.mode === 'menu');
+  await expect(page.locator('#btn-continue')).toBeVisible();
+  await page.locator('#btn-continue').click();
+  await expect(page.locator('#hud')).toBeVisible();
+  expect(await game<string>(page, 's.mode')).toBe('playing');
+  const after = await game<{ level: number; x: number; y: number; ash: number; skills: string[]; depth: number }>(
+    page,
+    '({ level: s.sim.hero.level, x: s.sim.hero.x, y: s.sim.hero.y, ash: s.sim.ash, skills: s.sim.hero.skills.map((k) => k.def.id), depth: s.dungeon.depth })',
+  );
+  expect(after.level).toBe(before.level);
+  expect(after.ash).toBe(before.ash);
+  expect(after.skills).toEqual(before.skills);
+  expect(after.depth).toBe(1);
+  expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(0.05);
+
+  // a new run replaces the saved one
+  await page.locator('#btn-pause').click();
+  await page.locator('#btn-abandon').click();
+  await expect(page.locator('#screen-end')).toBeVisible();
+  await page.locator('#btn-again').click();
+  await page.locator('[data-hero="warden"]').click();
+  await page.locator('#btn-start').click();
+  await expect(page.locator('#hud')).toBeVisible();
+  await page.locator('#btn-pause').click();
+  await page.locator('#btn-save-quit').click();
+  await expect(page.locator('#continue-note')).toContainText('poz. 1');
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('a big floor costs little to draw: rooms are built when found and only the ones on screen are shown', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  await startRun(page, 'warden', 'sunder');
+  const floor = await game<{ rooms: number; tiles: number }>(page, '({ rooms: s.dungeon.rooms.length, tiles: s.dungeon.map.w * s.dungeon.map.h })');
+  expect(floor.rooms).toBeGreaterThanOrEqual(20);
+  expect(floor.tiles).toBeGreaterThanOrEqual(100 * 100);
+  const atStart = await game<{ regions: number; built: number; objects: number }>(page, 's.world.stats()');
+  // only the entrance has been built, though the floor holds dozens of regions and thousands of tiles
+  expect(atStart.built).toBeLessThanOrEqual(3);
+  expect(atStart.regions).toBeGreaterThan(40);
+  const gameObjectsAtStart = await game<number>(page, 's.children.length');
+
+  // walk the whole main route (teleporting; the rooms are revealed as the hero enters them)
+  const route = await game<number[]>(page, 's.dungeon.mainRoute');
+  for (const id of route.slice(1)) {
+    await game(page, `(() => { const r = s.dungeon.rooms[${id}]; const h = s.sim.hero; h.x = h.px = r.x0 + 1.5; h.y = h.py = r.y0 + 1.5; h.hp = h.stats.maxHp; s.sim.enemies.forEach((e) => { if (e.state !== 'dead') s.sim.damageEnemy(e, { amount: 99999, crit: false }, 'attack', 0, 0); }); return 0; })()`);
+    await page.waitForTimeout(120);
+    if (await page.locator('#screen-choice').isVisible()) await page.locator('#choice-cards .card').first().click();
+  }
+  await page.waitForTimeout(600);
+  const explored = await game<{ regions: number; built: number; revealed: number; objects: number; shown: number }>(page, 's.world.stats()');
+  expect(explored.built).toBeGreaterThanOrEqual(route.length);
+  // far fewer objects are shown than exist: what is off screen is hidden
+  expect(explored.shown).toBeLessThan(explored.objects * 0.35);
+
+  // frame time over a few seconds of play in the middle of the floor
+  const frames = await page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const out: number[] = [];
+        let last = performance.now();
+        const tick = (t: number) => {
+          out.push(t - last);
+          last = t;
+          if (out.length < 180) requestAnimationFrame(tick);
+          else resolve(out.slice(10));
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  const sorted = [...frames].sort((a, b) => a - b);
+  const mean = frames.reduce((a, b) => a + b, 0) / frames.length;
+  const p95 = sorted[Math.floor(sorted.length * 0.95)]!;
+  test.info().annotations.push({ type: 'perf', description: `${floor.rooms} rooms, ${floor.tiles} tiles; built ${explored.built}/${explored.regions} regions, ${explored.shown}/${explored.objects} objects shown, objects at start ${gameObjectsAtStart}; frame mean ${mean.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms (${info.project.name}, desktop Edge, not a phone)` });
+  expect(mean).toBeLessThan(34);
+  await page.screenshot({ path: info.outputPath('big-floor.png') });
+  expect(errors, errors.join('\n')).toEqual([]);
+});

@@ -115,3 +115,13 @@ Reakcje: **Rozerwanie** (Szarża, Rzut Toporem, Wir Ostrzy → krwawienie; Rozł
 i Gwiezdny Deszcz oznaczają; Salwa, Strzał, Wartownik, Przeciążenie wyzwalają łuk błyskawicy: 0,6 s na znak, wspólny budżet
 6/s), **Rozbicie** (Miażdżący Cios, Strzał, Mina ×1,6 na zamrożonym i lód pęka), **Pułapka z uniku** (ulepszenie „Mina w Przewrocie”).
 Obrażenia z reakcji nie wywołują kolejnych reakcji.
+
+## Struktura piętra (v0.5)
+Cel: piętro to ok. 15–25 minut gry. Siatka 7×7 komórek po 20 kafli (mapa 140×140), 24–30 pokoi:
+- **jedna trasa główna** (16–17 pokoi, kręta, szerokie korytarze) od wejścia do legowiska bossa, bez pętli, więc boss jest zawsze najgłębiej;
+- **opcjonalne odnogi** (8–9, po 1–3 pokoje, wąskie korytarze), każda kończy się ślepym zaułkiem z nagrodą. Walidacja pilnuje, że bez wchodzenia w odnogi da się dojść do bossa;
+- **rytm trasy:** dwa łagodne pokoje na start → pułapkowa próba → arena → odpoczynek (kapliczka) → elita → próba → arena → odpoczynek przed bossem. Dwa duże starcia nigdy nie stoją obok siebie;
+- **typy pokoi:** walka, arena (duża, 3 fale, nagroda), elita (skrzynia), skarbiec, kapliczka, ołtarz ofiarny (25% zdrowia za ulepszenie i przedmiot; nie zabija), próba pułapek (bez wrogów, na odnodze ze skrzynią), legowisko bossa;
+- **spotkania:** style (standard, rój, strzelcy, brutale), więcej fal zamiast większych (maks. 9 żywych naraz), budżet rośnie wzdłuż piętra. HP wrogów bez zmian;
+- **krzywa XP** jest bardziej stroma (30 + 22 na poziom), bo na piętrze zabija się 150–200 wrogów.
+Zapis wyprawy: w spokojnych punktach (po oczyszczeniu pokoju, na starcie piętra, przy pauzie) — „Wznów wyprawę" na ekranie tytułowym.

@@ -36,6 +36,10 @@ export class Rng {
     return items[Math.floor(this.next() * items.length)] as T;
   }
 
+  setState(state: number): void {
+    this.state = state >>> 0;
+  }
+
   getState(): number {
     return this.state;
   }

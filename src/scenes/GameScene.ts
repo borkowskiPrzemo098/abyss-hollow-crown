@@ -10,7 +10,8 @@ import { SKILL_UPGRADES } from '../config/skillUpgrades';
 import { SYNERGIES } from '../config/statuses';
 import { screenDirToWorld, worldDirToScreenAngle, worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Controls } from '../input/controls';
-import { addItem, bankRun, buyRank, equip, equipSkill, equippedItems, salvage, skillLoadout, unequip, unequipSkill, type SaveStore } from '../meta/save';
+import { fitsDungeon, floorSeed, makeRunSave, type FloorRecord } from '../meta/runSave';
+import { addItem, bankRun, logFloor, buyRank, equip, equipSkill, equippedItems, salvage, skillLoadout, unequip, unequipSkill, type SaveStore } from '../meta/save';
 import { computeStats, emptyUpgrades } from '../sim/stats';
 import { InventoryScreen } from '../ui/inventory';
 import { EnemyView, HeroView } from '../render/actorView';
@@ -45,9 +46,12 @@ const BASE_SHORT_SIDE = 330;
 const ROOM_NAMES: Record<RoomType, string> = {
   start: 'Wejście',
   combat: 'Komnata',
+  arena: 'Arena',
   elite: 'Legowisko elity',
   treasure: 'Skarbiec',
   shrine: 'Kapliczka',
+  altar: 'Ołtarz ofiarny',
+  trial: 'Próba pułapek',
   exit: 'Strażnica schodów',
 };
 
@@ -56,6 +60,12 @@ interface RunState {
   seed: number;
   depth: number;
   time: number;
+  /** Totals of the floor being played: when it began (run seconds), fights won, kills before it. */
+  floorT0: number;
+  fights: number;
+  kills0: number;
+  /** Floors finished so far in this run. */
+  log: FloorRecord[];
 }
 
 /** Sound played when a skill is cast (Rozłam, Szarża, Salwa and Pieczęć keep their own cues). */
@@ -101,6 +111,9 @@ export class GameScene extends Phaser.Scene {
   private camX = 0;
   private camY = 0;
   private minimapT = 0;
+  /** Seconds since the run was last put on disk, and the clock for the next calm-moment autosave. */
+  private lastCheckpoint = -99;
+  private checkpointT = 0;
   private lastReveal = -1;
   private pendingHero: HeroId = 'warden';
   private sanctReturn: ScreenId = 'title';
@@ -200,6 +213,18 @@ export class GameScene extends Phaser.Scene {
       if (this.saving) void this.services.save.save();
     };
     return {
+      continueRun: () => {
+        click();
+        this.resumeSavedRun();
+      },
+      saveAndQuit: () => {
+        click();
+        // the run goes back onto the disk as it was at its last calm moment (taken right now if this is one)
+        this.checkpoint(true);
+        if (this.scene.isPaused()) this.scene.resume();
+        this.run = null;
+        this.toTitle();
+      },
       newRun: () => {
         click();
         this.menus.renderHeroes();
@@ -326,7 +351,8 @@ export class GameScene extends Phaser.Scene {
     const skills = skillLoadout(save.data, heroId);
     const build: HeroBuild = { heroId, skills, ranks: { ...save.data.ranks }, gear: equippedItems(save.data, heroId) };
     const seed = this.seedFromUrl();
-    this.run = { build, seed, depth: 1, time: 0 };
+    save.data.run = null;
+    this.run = { build, seed, depth: 1, time: 0, floorT0: 0, fights: 0, kills0: 0, log: [] };
     const d = generateDungeon(seed, 1);
     this.sim = new Simulation(d.map, { seed, build });
     this.setupFloor(d, heroId);
@@ -339,6 +365,98 @@ export class GameScene extends Phaser.Scene {
     this.mode = 'playing';
     const b1 = biomeFor(1);
     hud.showBanner(b1.name, b1.sub, 3);
+    this.checkpoint(true);
+  }
+
+  /** Picks up the saved run from its last calm moment. A run that no longer fits its floor is dropped. */
+  private resumeSavedRun(): void {
+    const { hud, controls, sfx, save } = this.services;
+    const rs = save.data.run;
+    if (!rs) return;
+    const d = generateDungeon(floorSeed(rs.seed, rs.depth), rs.depth);
+    if (!fitsDungeon(rs, d)) {
+      save.data.run = null;
+      this.persist();
+      this.toTitle();
+      return;
+    }
+    const build: HeroBuild = { heroId: rs.heroId, skills: [...rs.skills], ranks: { ...save.data.ranks }, gear: equippedItems(save.data, rs.heroId) };
+    this.run = { build, seed: rs.seed, depth: rs.depth, time: rs.time, floorT0: rs.time - rs.floor.seconds, fights: rs.floor.fights, kills0: rs.floor.kills0, log: [] };
+    this.sim = new Simulation(d.map, { seed: rs.seed, build });
+    this.setupFloor(d, rs.heroId);
+    this.sim.restore(rs.sim);
+    this.director.restore(rs.director);
+    this.world!.reveal(this.director.revealedRooms, this.director.revealedCorridors, true);
+    this.lastReveal = this.director.revealVersion;
+    this.entities.clear();
+    this.snapCamera();
+    const room = this.director.currentRoom !== null ? d.rooms[this.director.currentRoom] : undefined;
+    hud.setWhere(`Poziom ${d.depth} · ${ROOM_NAMES[room?.type ?? 'start']}`);
+    hud.setSkills(rs.skills.map((id) => ({ id, name: SKILLS[id].name })));
+    this.menus.show(null);
+    hud.show(true);
+    controls.release();
+    controls.enabled = true;
+    sfx.setAmbience(true);
+    this.mode = 'playing';
+    this.lastCheckpoint = performance.now();
+    const bio = biomeFor(rs.depth);
+    hud.showBanner(bio.name, 'Wyprawa wznowiona', 2.6);
+  }
+
+  /**
+   * Puts the run on disk — but only at a calm moment (no fight, no choice pending), so the save is always a
+   * place the player could stand in. At any other moment the previous save stands.
+   */
+  private checkpoint(force = false): boolean {
+    const run = this.run;
+    if (!this.saving || !run || (this.mode !== 'playing' && this.mode !== 'paused')) return false;
+    const now = performance.now();
+    if (!force && now - this.lastCheckpoint < 4000) return false;
+    const rs = makeRunSave(this.sim, this.director, {
+      seed: run.seed,
+      depth: run.depth,
+      time: run.time,
+      heroId: run.build.heroId,
+      skills: run.build.skills,
+      floor: { seconds: run.time - run.floorT0, fights: run.fights, kills0: run.kills0 },
+    });
+    if (!rs) return false;
+    this.services.save.data.run = rs;
+    void this.services.save.save();
+    this.lastCheckpoint = now;
+    return true;
+  }
+
+  /** Writes down how the floor just left went (left by the stairs, or ended by death or giving up). */
+  private closeFloor(completed: boolean): void {
+    const run = this.run;
+    if (!run) return;
+    const rec: FloorRecord = {
+      hero: run.build.heroId,
+      depth: run.depth,
+      seconds: Math.round((run.time - run.floorT0) * 10) / 10,
+      roomsVisited: this.dungeon.rooms.filter((r) => r.type !== 'start' && this.director.states[r.id] !== 'unvisited').length,
+      roomsTotal: this.dungeon.rooms.length - 1,
+      fights: run.fights,
+      kills: this.sim.kills - run.kills0,
+      completed,
+      at: Date.now(),
+    };
+    run.log.push(rec);
+    logFloor(this.services.save.data, rec);
+    run.floorT0 = run.time;
+    run.fights = 0;
+    run.kills0 = this.sim.kills;
+  }
+
+  private snapCamera(): void {
+    const h = this.sim.hero;
+    this.heroView?.update(h, h.x, h.y, 0, 0);
+    if (!this.heroView) return;
+    this.camX = this.heroView.sx;
+    this.camY = this.heroView.sy - 26;
+    this.cameras.main.centerOn(this.camX, this.camY);
   }
 
   private setupFloor(d: Dungeon, heroId: HeroId): void {
@@ -375,6 +493,7 @@ export class GameScene extends Phaser.Scene {
     controls.enabled = false;
     controls.release();
     const next = run.depth + 1;
+    this.closeFloor(true);
     if (next > RUN.floors) {
       await hud.fadeOut('Na powierzchnię');
       hud.fadeIn();
@@ -391,6 +510,7 @@ export class GameScene extends Phaser.Scene {
     hud.showBanner(bio.name, bio.sub, 3);
     controls.enabled = true;
     this.mode = 'playing';
+    this.checkpoint(true);
   }
 
   private endRun(won: boolean): void {
@@ -405,6 +525,9 @@ export class GameScene extends Phaser.Scene {
       this.toTitle();
       return;
     }
+    // a floor left by dying or giving up still goes on record (a win already closed its floor)
+    if (!won) this.closeFloor(false);
+    save.data.run = null;
     const { gained, unlocked } = bankRun(save.data, {
       hero: run.build.heroId,
       ash: this.sim.ash,
@@ -416,7 +539,7 @@ export class GameScene extends Phaser.Scene {
       skillUpgrades: this.sim.skillUpgradeLog,
     });
     if (this.saving) void save.save();
-    this.menus.renderEnd({ won, floor: run.depth, kills: this.sim.kills, level: this.sim.hero.level, seconds: run.time, ashKept: gained, loot: [...this.sim.loot], unlocked });
+    this.menus.renderEnd({ won, floor: run.depth, kills: this.sim.kills, level: this.sim.hero.level, seconds: run.time, ashKept: gained, loot: [...this.sim.loot], unlocked, floors: run.log });
     this.menus.show('end');
     this.run = null;
   }
@@ -424,6 +547,7 @@ export class GameScene extends Phaser.Scene {
   pauseGame(): void {
     if (this.mode !== 'playing') return;
     this.mode = 'paused';
+    this.checkpoint(true);
     this.services.controls.enabled = false;
     this.services.controls.release();
     this.services.hud.clearBanner();
@@ -541,6 +665,10 @@ export class GameScene extends Phaser.Scene {
         const w = screenDirToWorld(inp.sx, inp.sy);
         sim.setInput({ moveX: w.x, moveY: w.y, dodge: inp.dodge, skill: inp.skills[0], skill2: inp.skills[1], skill3: inp.skills[2] });
         if (this.run) this.run.time += dt;
+        if (this.checkpointT > 0) {
+          this.checkpointT -= dt;
+          if (this.checkpointT <= 0 && !this.checkpoint()) this.checkpointT = 3; // not calm yet (a choice is open): try again soon
+        }
       } else {
         sim.setInput({ moveX: 0, moveY: 0, dodge: false, skill: false });
       }
@@ -591,6 +719,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const world = this.world!;
+    const wv = this.cameras.main.worldView;
+    world.cull(wv.x, wv.y, wv.width, wv.height);
     if (this.director.revealVersion !== this.lastReveal) {
       world.reveal(this.director.revealedRooms, this.director.revealedCorridors);
       this.lastReveal = this.director.revealVersion;
@@ -858,6 +988,17 @@ export class GameScene extends Phaser.Scene {
         else if (ev.roomType === 'exit') hud.showBanner('Strażnica schodów', 'Pokonaj strażników, by zejść niżej');
         else if (ev.roomType === 'treasure') hud.showBanner('Skarbiec', 'Podejdź do skrzyni');
         else if (ev.roomType === 'shrine') hud.showBanner('Kapliczka', 'Dotknij ołtarza, by odzyskać siły');
+        else if (ev.roomType === 'arena') hud.showBanner('Arena', 'Duże starcie w kilku falach. Po walce nagroda.');
+        else if (ev.roomType === 'trial') hud.showBanner('Próba pułapek', 'Żadnych wrogów. Uważaj, gdzie stajesz.');
+        else if (ev.roomType === 'altar') hud.showBanner('Ołtarz ofiarny', 'Zapłać zdrowiem za dar. Nie zabije cię.');
+        break;
+      case 'altar':
+        this.fx.ring(hv.sx, hv.sy, 1.4, 0xc8556a, 0.5);
+        hud.toast(`Ofiara: −${ev.cost} zdrowia`, 'var(--blood)');
+        sfx.play('cast');
+        break;
+      case 'altarRefused':
+        hud.toast('Za mało zdrowia na ofiarę', 'var(--bone-dim)');
         break;
       case 'doors':
         sfx.play('door');
@@ -865,6 +1006,8 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'roomClear':
         if (ev.roomType !== 'exit') hud.showBanner('Komnata oczyszczona', 'Drzwi stoją otworem', 1.6);
+        if (ev.roomType !== 'start' && ev.roomType !== 'treasure' && ev.roomType !== 'shrine' && this.run) this.run.fights++;
+        this.checkpointT = 0.6; // the loot has landed by then; the autosave below takes it
         break;
       case 'stairsOpen':
         hud.showBanner('Schody otwarte', this.run && this.run.depth >= RUN.floors ? 'Prowadzą na powierzchnię' : 'Wejdź na nie, by zejść niżej', 2.4);

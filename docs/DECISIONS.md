@@ -83,3 +83,11 @@ Zwykłe/rzadkie/epickie mają losowane statystyki; 12 legendarnych ma stałą na
 
 ## D20 — Boss zamiast fal w ostatniej komnacie; 3 biomy
 Komnata bossa jest zawsze największa (12×12). Każde piętro ma własny biom (wygląd, wrogowie, pułapki, boss) — `src/config/biomes.ts`. Bossowie to dane (listy ataków na 2 fazy), nie osobny kod — kolejnych dodaje się w konfiguracji.
+
+## D21 — piętro jako trasa z odnogami (v0.5)
+Jedna kręta trasa główna do bossa + opcjonalne ślepe odnogi z nagrodą, bez pętli. Dłuższe piętro przez więcej pokoi i spotkań, nie przez HP wrogów
+ani czekanie. Odnogi nigdy nie są wymagane (walidacja). Wada: brak skrótów i pętli; zysk: czytelność i pewne „wyjście najgłębiej".
+
+## D22 — zapis wyprawy tylko w spokojnych punktach (v0.5)
+Wyprawa zapisuje się, gdy nie ma walki, wyboru ani żywych wrogów; wznowienie wraca do ostatniego takiego punktu. Piętro odtwarza się z ziarna,
+w zapisie jest tylko to, co zrobił gracz. Wada: wyjście w trakcie walki cofa do przed walką; zysk: brak zapisów w niemożliwych stanach.

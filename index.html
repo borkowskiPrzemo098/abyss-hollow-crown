@@ -101,7 +101,7 @@
               <button id="btn-hero" class="icon-btn" type="button" aria-label="Postać i statystyki"><svg aria-hidden="true"><use href="#i-hero" /></svg></button>
               <button id="btn-pause" class="icon-btn" type="button" aria-label="Pauza"><svg aria-hidden="true"><use href="#i-pause" /></svg></button>
             </div>
-            <canvas id="minimap" class="minimap" width="240" height="160" aria-label="Mapa poziomu"></canvas>
+            <canvas id="minimap" class="minimap" width="300" height="200" aria-label="Mapa poziomu"></canvas>
           </div>
         </div>
 
@@ -144,11 +144,13 @@
           <h1 id="title-h" class="title"><span class="title-main">Abyss</span><span class="title-sub">The Hollow Crown</span></h1>
           <p class="lore">Korona leży pusta od stu lat. Pod ruinami ciągną się podziemia, a coś na ich dnie wciąż jej szuka. Zejdź po trzech poziomach Otchłani i wróć z popiołem.</p>
           <div class="menu-actions">
+            <button id="btn-continue" class="btn btn-primary" type="button" hidden>Wznów wyprawę</button>
             <button id="btn-new" class="btn btn-primary" type="button">Nowa wyprawa</button>
             <button id="btn-inv" class="btn btn-ghost" type="button">Ekwipunek</button>
             <button id="btn-codex" class="btn btn-ghost" type="button">Postacie i umiejętności</button>
             <button id="btn-sanct" class="btn btn-ghost" type="button">Sanktuarium <span class="pill"><svg aria-hidden="true"><use href="#i-ash" /></svg><b id="title-ash">0</b></span></button>
           </div>
+          <p class="record" id="continue-note" hidden></p>
           <p class="record" id="record"></p>
           <dl class="how how-touch">
             <div><dt>Lewy kciuk</dt><dd>ruch</dd></div>
@@ -207,6 +209,7 @@
             <h2 id="pause-h" class="panel-title">Pauza</h2>
             <div class="panel-actions">
               <button id="btn-resume" class="btn btn-primary" type="button">Wznów</button>
+              <button id="btn-save-quit" class="btn btn-ghost" type="button">Zapisz i wyjdź</button>
               <button id="btn-abandon" class="btn btn-ghost" type="button">Porzuć wyprawę</button>
             </div>
             <div class="settings">
@@ -276,6 +279,7 @@
             <div><dt>Czas</dt><dd id="end-time">0:00</dd></div>
           </dl>
           <p class="gain"><svg aria-hidden="true"><use href="#i-ash" /></svg>Zachowany popiół: <b id="end-ash">0</b></p>
+          <div id="end-floors" class="end-loot"></div>
           <div id="end-unlocked" class="end-loot"></div>
           <div id="end-loot" class="end-loot"></div>
           <div class="panel-actions">

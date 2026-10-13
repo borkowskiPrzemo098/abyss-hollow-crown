@@ -400,6 +400,8 @@ export type SimEvent =
   | { type: 'loot'; item: Item }
   | { type: 'chest'; x: number; y: number }
   | { type: 'shrine'; x: number; y: number; amount: number }
+  | { type: 'altar'; x: number; y: number; cost: number }
+  | { type: 'altarRefused'; x: number; y: number }
   | { type: 'roomEnter'; roomId: number; roomType: RoomType }
   | { type: 'doors'; roomId: number; open: boolean }
   | { type: 'roomClear'; roomId: number; roomType: RoomType }

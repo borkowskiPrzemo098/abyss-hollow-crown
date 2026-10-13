@@ -270,8 +270,8 @@ button {
 }
 
 .minimap {
-  width: 120px;
-  height: 80px;
+  width: 150px;
+  height: 100px;
   border-radius: 6px;
   background: rgba(7, 8, 10, 0.55);
   box-shadow: inset 0 0 0 1px rgba(232, 224, 204, 0.12);
@@ -1716,8 +1716,8 @@ button {
 /* phones in landscape: compact HUD so the arena keeps the middle of the screen */
 @media (max-height: 480px) {
   .minimap {
-    width: 96px;
-    height: 64px;
+    width: 108px;
+    height: 72px;
   }
   .where {
     display: none;
@@ -2327,4 +2327,10 @@ button.lo-slot:focus-visible {
 .codex-rules {
   margin-top: 22px;
   padding-bottom: 12px;
+}
+
+/* the hidden attribute must win over component display rules (the saved-run button and its note use it) */
+.btn[hidden],
+.record[hidden] {
+  display: none;
 }

@@ -62,6 +62,39 @@ export interface SimOptions {
   build: HeroBuild;
 }
 
+/**
+ * Everything about a run that cannot be rebuilt from the floor's seed: the hero, the counters, the random
+ * streams, what lies on the floor and which objects have been used. It is only taken at a calm moment
+ * (see isSafePoint in meta/runSave.ts), so no enemy, projectile or timer of a fight needs saving.
+ */
+export interface SimSnapshot {
+  time: number;
+  kills: number;
+  ash: number;
+  depth: number;
+  /** State of the combat and the offer random streams, so a resumed run goes on exactly as it would have. */
+  rng: number;
+  choiceRng: number;
+  hero: {
+    x: number;
+    y: number;
+    facing: number;
+    hp: number;
+    level: number;
+    xp: number;
+    upgrades: Record<string, number>;
+    skillUpgrades: Record<string, number>;
+    skillCd: number[];
+    dodgeCd: number;
+  };
+  loot: Item[];
+  skillUpgradeLog: string[];
+  /** Cycle offsets of the floor's traps (they were drawn from the random stream when the floor was made). */
+  trapPhases: number[];
+  objects: { kind: ObjectKind; x: number; y: number; roomId: number; active: boolean; used: boolean; loot: DropSource }[];
+  pickups: { kind: Pickup['kind']; x: number; y: number; amount: number; item?: Item }[];
+}
+
 /** Drives encounters on top of the combat core (dungeon rooms, or test waves). */
 export interface Director {
   update(dt: number): void;
@@ -440,6 +473,84 @@ export class Simulation {
     }
     this.hero.skillUpgrades = next;
     this.modCache.clear();
+  }
+
+  snapshot(): SimSnapshot {
+    const h = this.hero;
+    return {
+      time: this.time,
+      kills: this.kills,
+      ash: this.ash,
+      depth: this.depth,
+      rng: this.rng.getState(),
+      choiceRng: this.choiceRng.getState(),
+      hero: {
+        x: h.x,
+        y: h.y,
+        facing: h.facing,
+        hp: h.hp,
+        level: h.level,
+        xp: h.xp,
+        upgrades: { ...h.upgrades },
+        skillUpgrades: { ...h.skillUpgrades },
+        skillCd: h.skills.map((sl) => sl.cd),
+        dodgeCd: h.dodgeCd,
+      },
+      loot: [...this.loot],
+      skillUpgradeLog: [...this.skillUpgradeLog],
+      trapPhases: this.traps.map((t) => t.phase),
+      objects: this.objects.map((o) => ({ kind: o.kind, x: o.x, y: o.y, roomId: o.roomId, active: o.active, used: o.used, loot: o.loot })),
+      pickups: this.pickups.map((q) => ({ kind: q.kind, x: q.x, y: q.y, amount: q.amount, ...(q.item ? { item: q.item } : {}) })),
+    };
+  }
+
+  /**
+   * Puts a snapshot back onto a freshly built floor (the director has already made its objects and traps;
+   * they are replaced by the saved ones). The random streams are set last, so the result does not depend
+   * on what building the floor drew from them.
+   */
+  restore(s: SimSnapshot): void {
+    const h = this.hero;
+    h.x = h.px = s.hero.x;
+    h.y = h.py = s.hero.y;
+    h.facing = s.hero.facing;
+    h.level = s.hero.level;
+    h.xp = s.hero.xp;
+    h.upgrades = { ...emptyUpgrades() };
+    for (const [id, n] of Object.entries(s.hero.upgrades)) if (id in UPGRADES) h.upgrades[id as UpgradeId] = Math.min(UPGRADES[id as UpgradeId].maxStacks, Math.max(0, Math.floor(n)));
+    this.setSkillUpgrades(s.hero.skillUpgrades);
+    this.recomputeStats();
+    h.hp = Math.max(1, Math.min(h.stats.maxHp, s.hero.hp));
+    h.skills.forEach((sl, i) => (sl.cd = Math.max(0, s.hero.skillCd[i] ?? 0)));
+    h.dodgeCd = Math.max(0, s.hero.dodgeCd);
+    h.vx = h.vy = 0;
+    h.state = 'idle';
+    this.time = s.time;
+    this.kills = s.kills;
+    this.ash = s.ash;
+    this.depth = s.depth;
+    this.loot = [...s.loot];
+    this.skillUpgradeLog = [...s.skillUpgradeLog];
+    this.traps.forEach((t, i) => (t.phase = s.trapPhases[i] ?? t.phase));
+    this.objects = [];
+    for (const o of s.objects) {
+      const made = this.addObject(o.kind, o.x, o.y, o.roomId, o.active, o.loot);
+      made.used = o.used;
+    }
+    this.pickups = [];
+    for (const q of s.pickups) this.addPickup(q.kind, q.x, q.y, q.amount, q.item);
+    for (const q of this.pickups) {
+      q.vx = q.vy = 0;
+      q.age = 1;
+    }
+    this.enemies = [];
+    this.projectiles = [];
+    this.zones = [];
+    this.hazards = [];
+    this.delayed = [];
+    this.choices = [];
+    this.rng.setState(s.rng);
+    this.choiceRng.setState(s.choiceRng);
   }
 
   /** Skill upgrades that could still be offered: for worn skills only, and not yet at their last level. */

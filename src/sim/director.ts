@@ -1,12 +1,12 @@
 import type { EnemyKind } from '../config/balance';
 import { biomeFor } from '../config/biomes';
-import { DUNGEON, ENEMY_COST } from '../config/dungeon';
+import { DUNGEON, ENEMY_COST, type EncounterStyle } from '../config/dungeon';
 import { DROPS } from '../config/items';
 import { RUN, floorScaling } from '../config/progression';
 import { dist } from '../core/math';
 import type { Rng } from '../core/rng';
 import { Tile } from '../world/arena';
-import { roomAt, type Dungeon, type Room } from '../world/dungeon';
+import { FIGHT_ROOMS, roomAt, type Dungeon, type Room } from '../world/dungeon';
 import type { Director, Simulation } from './simulation';
 
 export type RoomState = 'unvisited' | 'active' | 'cleared';
@@ -14,18 +14,30 @@ export type RoomState = 'unvisited' | 'active' | 'cleared';
 /** Builds the waves for one room from its enemy budget and the floor's roster. Deterministic for a given rng state. */
 export function composeEncounter(room: Room, depth: number, rng: Rng): EnemyKind[][] {
   const biome = biomeFor(depth);
-  const mult = room.type === 'elite' ? DUNGEON.eliteMult : 1;
+  const style: EncounterStyle = room.style ?? 'standard';
+  const mult = room.type === 'elite' ? DUNGEON.eliteMult : room.type === 'arena' ? DUNGEON.arenaMult : 1;
+  // the floor builds up: gentler near the entrance, harder near the boss
+  const ramp = 1 + DUNGEON.ramp * ((room.progress ?? 0.5) - 0.5);
   const area = (room.x1 - room.x0 + 1) * (room.y1 - room.y0 + 1);
-  let budget = (DUNGEON.budgetBase + DUNGEON.budgetPerDepth * (depth - 1)) * mult * Math.min(1.2, Math.max(0.85, area / 121));
+  let budget = (DUNGEON.budgetBase + DUNGEON.budgetPerDepth * (depth - 1)) * mult * ramp * Math.min(1.2, Math.max(0.85, area / 121));
+  if (style === 'swarm') budget *= 1.2;
   const roster: EnemyKind[] = [];
-  if (room.type === 'elite' || depth >= 3) {
+  const brutes = room.type === 'elite' ? 1 + (depth >= 2 && budget > 14 ? 1 : 0) : style === 'brutes' && depth >= 2 ? 2 : depth >= 3 ? 1 : 0;
+  for (let i = 0; i < brutes; i++) {
     roster.push('brute');
     budget -= ENEMY_COST.brute;
   }
-  const kinds = Object.entries(biome.roster) as [EnemyKind, number][];
+  // what the style prefers (kinds the floor does not have simply do not appear)
+  const kinds = (Object.entries(biome.roster) as [EnemyKind, number][]).map(([k, w]): [EnemyKind, number] => {
+    if (style === 'swarm') return [k, k === 'thrall' ? w * 4 : k === 'hound' ? w : w * 0.25];
+    if (style === 'ranged') return [k, k === 'acolyte' || k === 'pyre' ? w * 4 : k === 'thrall' ? w * 0.6 : w];
+    return [k, w];
+  });
   const total = kinds.reduce((t, [, w]) => t + w, 0);
+  const cap = biome.specialCap + (style === 'ranged' ? 2 : 0);
   const specials = new Map<EnemyKind, number>();
-  while (budget >= 1) {
+  const limit = DUNGEON.maxWaves * DUNGEON.maxAlive;
+  while (budget >= 1 && roster.length < limit) {
     let r = rng.next() * total;
     let kind: EnemyKind = 'thrall';
     for (const [k, w] of kinds) {
@@ -36,16 +48,26 @@ export function composeEncounter(room: Room, depth: number, rng: Rng): EnemyKind
       r -= w;
     }
     const special = kind !== 'thrall' && kind !== 'brute';
-    if (ENEMY_COST[kind] > budget || (special && (specials.get(kind) ?? 0) >= biome.specialCap) || (kind === 'brute' && depth === 1 && room.type !== 'elite')) kind = 'thrall';
+    if (ENEMY_COST[kind] > budget || (special && (specials.get(kind) ?? 0) >= cap) || (kind === 'brute' && depth === 1 && room.type !== 'elite')) kind = 'thrall';
     if (kind !== 'thrall' && kind !== 'brute') specials.set(kind, (specials.get(kind) ?? 0) + 1);
     roster.push(kind);
     budget -= ENEMY_COST[kind];
   }
-  const waves = room.type === 'combat' && roster.length <= 5 ? 1 : 2;
+  // more waves instead of bigger ones: nobody faces more than maxAlive at once
+  const minWaves = room.type === 'arena' ? DUNGEON.arenaMinWaves : 1;
+  const waves = Math.min(DUNGEON.maxWaves, Math.max(minWaves, Math.ceil(roster.length / DUNGEON.waveSize)));
   const out: EnemyKind[][] = Array.from({ length: waves }, () => []);
   // brutes lead the first wave; the rest is dealt round-robin
   roster.forEach((k, i) => out[k === 'brute' && i === 0 ? 0 : i % waves]!.push(k));
   return out.filter((w) => w.length > 0);
+}
+
+/** What the director must remember to carry on a floor later: which rooms are cleared and what has been seen. */
+export interface DirectorSnapshot {
+  states: RoomState[];
+  revealedRooms: number[];
+  revealedCorridors: number[];
+  currentRoom: number | null;
 }
 
 /**
@@ -66,6 +88,7 @@ export class DungeonDirector implements Director {
   /** Objects that appeared under the hero: they arm only after the hero steps off. */
   private readonly needsLeave = new Set<number>();
   private waveT = 0;
+  private refusedAt = -99;
 
   constructor(private readonly sim: Simulation, readonly dungeon: Dungeon) {
     this.states = dungeon.rooms.map((r) => (r.type === 'start' ? 'cleared' : 'unvisited'));
@@ -73,9 +96,45 @@ export class DungeonDirector implements Director {
     this.revealedCorridors = new Uint8Array(dungeon.corridors.length);
     sim.depth = dungeon.depth;
     sim.setTraps(dungeon.traps);
-    for (const o of dungeon.objects) sim.addObject(o.kind, o.x, o.y, o.roomId, o.kind !== 'stairs', 'treasure');
+    for (const o of dungeon.objects) sim.addObject(o.kind, o.x, o.y, o.roomId, o.kind !== 'stairs', o.loot ?? 'treasure');
     this.reveal(dungeon.startRoom);
     this.currentRoom = dungeon.startRoom;
+  }
+
+  snapshot(): DirectorSnapshot {
+    const ids = (a: Uint8Array) => Array.from(a, (v, i) => (v ? i : -1)).filter((i) => i >= 0);
+    return { states: [...this.states], revealedRooms: ids(this.revealedRooms), revealedCorridors: ids(this.revealedCorridors), currentRoom: this.currentRoom };
+  }
+
+  /** Applies a snapshot made at a calm moment: no room is mid-fight, every door is open. */
+  restore(s: DirectorSnapshot): void {
+    s.states.forEach((st, i) => {
+      if (i < this.states.length) this.states[i] = st === 'active' ? 'unvisited' : st;
+    });
+    this.revealedRooms.fill(0);
+    this.revealedCorridors.fill(0);
+    for (const i of s.revealedRooms) if (i >= 0 && i < this.revealedRooms.length) this.revealedRooms[i] = 1;
+    for (const i of s.revealedCorridors) if (i >= 0 && i < this.revealedCorridors.length) this.revealedCorridors[i] = 1;
+    this.currentRoom = s.currentRoom;
+    this.waves = [];
+    this.bossId = null;
+    this.needsLeave.clear();
+    this.revealVersion++;
+  }
+
+  /** True when nothing is going on that a snapshot could not carry: no fight, no pending choice, no live enemy. */
+  isCalm(): boolean {
+    const sim = this.sim;
+    return (
+      sim.hero.state !== 'dead' &&
+      this.activeRoom === null &&
+      this.bossId === null &&
+      this.waves.length === 0 &&
+      sim.choices.length === 0 &&
+      sim.livingEnemyCount() === 0 &&
+      sim.projectiles.length === 0 &&
+      sim.hazards.length === 0
+    );
   }
 
   get activeRoom(): Room | null {
@@ -132,7 +191,23 @@ export class DungeonDirector implements Director {
         this.sim.emit({ type: 'chest', x: o.x, y: o.y });
         for (let i = 0; i < 4; i++) this.sim.addPickup('ash', o.x, o.y, 1);
         this.sim.dropItem(o.loot, o.x, o.y);
-        if (o.loot === 'treasure') this.sim.queueChoice('chest');
+        // treasure vaults and the end of a trial hall also offer an upgrade; an elite's chest holds items only
+        if (o.loot === 'treasure' || this.dungeon.rooms[o.roomId]?.type === 'trial') this.sim.queueChoice('chest');
+      } else if (o.kind === 'altar') {
+        // a risky reward: it costs a share of your health, and will not kill you
+        const cost = h.stats.maxHp * DUNGEON.altarCost;
+        if (h.hp <= cost + 1) {
+          if (this.sim.time - this.refusedAt > 2.5) {
+            this.refusedAt = this.sim.time;
+            this.sim.emit({ type: 'altarRefused', x: o.x, y: o.y });
+          }
+          continue;
+        }
+        o.used = true;
+        h.hp -= cost;
+        this.sim.emit({ type: 'altar', x: o.x, y: o.y, cost: Math.round(cost) });
+        this.sim.dropItem('treasure', o.x, o.y);
+        this.sim.queueChoice('chest');
       } else if (o.kind === 'shrine') {
         o.used = true;
         const healed = this.sim.heal(h.stats.maxHp * RUN.shrineHealFraction);
@@ -162,7 +237,7 @@ export class DungeonDirector implements Director {
 
   private enter(room: Room): void {
     this.sim.emit({ type: 'roomEnter', roomId: room.id, roomType: room.type });
-    if (room.type === 'treasure' || room.type === 'shrine' || room.type === 'start') {
+    if (!FIGHT_ROOMS.has(room.type)) {
       this.states[room.id] = 'cleared';
       return;
     }
@@ -201,6 +276,10 @@ export class DungeonDirector implements Director {
     this.sim.emit({ type: 'roomClear', roomId: room.id, roomType: room.type });
     for (let i = 0; i < RUN.roomClearAsh; i++) this.sim.addPickup('ash', room.cx, room.cy, 1);
     this.sim.heal(this.sim.hero.stats.maxHp * RUN.roomClearHeal);
+    if (room.type === 'arena') {
+      this.sim.heal(this.sim.hero.stats.maxHp * DUNGEON.arenaHeal);
+      if (this.sim.rng.chance(DUNGEON.arenaItemChance)) this.sim.dropItem('elite', room.cx, room.cy);
+    }
     if (room.type === 'elite') {
       const p = this.sim.walkableNear(room.cx, room.cy);
       this.armAway(this.sim.addObject('chest', p.x, p.y, room.id, true, 'elite').id, p.x, p.y);
