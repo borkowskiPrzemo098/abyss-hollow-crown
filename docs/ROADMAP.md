@@ -23,7 +23,7 @@ początkowego”, Chrome „Zainstaluj”), dźwięk po pierwszym dotknięciu na
 **Znane ograniczenia Etapu 1:**
 - Grafika to spójne, ale proceduralne placeholdery (postacie z kilku części, animacja kodem).
 - Ustawienia głośności nie są zapisywane (zapis = Etap 5, IndexedDB).
-- Offline po pierwszym wczytaniu powinien działać (SW cache), ale nie jest jeszcze zweryfikowany testem.
+- Offline: zweryfikowane `scripts/check-live.mjs` (Edge, emulacja telefonu) — gra startuje bez sieci po drugim wczytaniu. Nie sprawdzone na fizycznym iPhonie/Androidzie.
 - Jedna arena, brak nagród/XP/ulepszeń (Etap 2).
 
 ## ⏭ Etap 2 — pierwszy kompletny cykl walki (następny)

@@ -26,6 +26,8 @@ npm run dev        # serwer deweloperski http://localhost:4930 (także w sieci L
 npm test           # Vitest: logika, kolizje, targeting, unik, cooldowny, determinizm, boty projektowe
 npm run build      # typecheck + build produkcyjny do dist/
 npm run test:e2e   # Playwright na lokalnym Edge (desktop + emulacja Pixel 7), po buildzie
+npm run deploy     # testy + build + publikacja na gh-pages
+node scripts/check-live.mjs   # sprawdza wersję live (w tym przeładowanie offline)
 ```
 
 Po każdej zmianie: `npm test`, `npm run build`, `npm run test:e2e`. Wszystko musi być zielone.
