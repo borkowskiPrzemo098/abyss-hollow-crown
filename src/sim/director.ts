@@ -1,5 +1,7 @@
 import type { EnemyKind } from '../config/balance';
+import { biomeFor } from '../config/biomes';
 import { DUNGEON, ENEMY_COST } from '../config/dungeon';
+import { DROPS } from '../config/items';
 import { RUN, floorScaling } from '../config/progression';
 import { dist } from '../core/math';
 import type { Rng } from '../core/rng';
@@ -9,28 +11,37 @@ import type { Director, Simulation } from './simulation';
 
 export type RoomState = 'unvisited' | 'active' | 'cleared';
 
-/** Builds the waves for one room from its enemy budget. Deterministic for a given rng state. */
+/** Builds the waves for one room from its enemy budget and the floor's roster. Deterministic for a given rng state. */
 export function composeEncounter(room: Room, depth: number, rng: Rng): EnemyKind[][] {
-  const mult = room.type === 'elite' ? DUNGEON.eliteMult : room.type === 'exit' ? DUNGEON.guardianMult : 1;
+  const biome = biomeFor(depth);
+  const mult = room.type === 'elite' ? DUNGEON.eliteMult : 1;
   const area = (room.x1 - room.x0 + 1) * (room.y1 - room.y0 + 1);
   let budget = (DUNGEON.budgetBase + DUNGEON.budgetPerDepth * (depth - 1)) * mult * Math.min(1.2, Math.max(0.85, area / 121));
   const roster: EnemyKind[] = [];
-  if (room.type === 'elite' || room.type === 'exit' || depth >= 3) {
+  if (room.type === 'elite' || depth >= 3) {
     roster.push('brute');
     budget -= ENEMY_COST.brute;
   }
-  let acolytes = 0;
-  const maxAcolytes = depth === 1 ? 1 : 2 + Math.floor(depth / 2);
+  const kinds = Object.entries(biome.roster) as [EnemyKind, number][];
+  const total = kinds.reduce((t, [, w]) => t + w, 0);
+  const specials = new Map<EnemyKind, number>();
   while (budget >= 1) {
-    const r = rng.next();
+    let r = rng.next() * total;
     let kind: EnemyKind = 'thrall';
-    if (r < 0.28 && acolytes < maxAcolytes && budget >= ENEMY_COST.acolyte) kind = 'acolyte';
-    else if (r > 0.88 && depth >= 2 && budget >= ENEMY_COST.brute) kind = 'brute';
-    if (kind === 'acolyte') acolytes++;
+    for (const [k, w] of kinds) {
+      if (r < w) {
+        kind = k;
+        break;
+      }
+      r -= w;
+    }
+    const special = kind !== 'thrall' && kind !== 'brute';
+    if (ENEMY_COST[kind] > budget || (special && (specials.get(kind) ?? 0) >= biome.specialCap) || (kind === 'brute' && depth === 1 && room.type !== 'elite')) kind = 'thrall';
+    if (kind !== 'thrall' && kind !== 'brute') specials.set(kind, (specials.get(kind) ?? 0) + 1);
     roster.push(kind);
     budget -= ENEMY_COST[kind];
   }
-  const waves = room.type === 'combat' && roster.length <= 5 ? 1 : room.type === 'exit' ? 3 : 2;
+  const waves = room.type === 'combat' && roster.length <= 5 ? 1 : 2;
   const out: EnemyKind[][] = Array.from({ length: waves }, () => []);
   // brutes lead the first wave; the rest is dealt round-robin
   roster.forEach((k, i) => out[k === 'brute' && i === 0 ? 0 : i % waves]!.push(k));
@@ -40,7 +51,7 @@ export function composeEncounter(room: Room, depth: number, rng: Rng): EnemyKind
 /**
  * Runs one dungeon floor on top of the combat simulation: reveals rooms as the
  * hero explores, locks doors while a room's fight is on, spawns its waves,
- * pays out rewards, and opens the stairs once the exit room is cleared.
+ * pays out rewards, and opens the stairs once the floor's boss falls.
  */
 export class DungeonDirector implements Director {
   readonly states: RoomState[];
@@ -50,6 +61,8 @@ export class DungeonDirector implements Director {
   /** Bumped whenever the revealed set changes (renderers redraw the minimap). */
   revealVersion = 0;
   private waves: EnemyKind[][] = [];
+  /** The floor boss while it lives. */
+  bossId: number | null = null;
   /** Objects that appeared under the hero: they arm only after the hero steps off. */
   private readonly needsLeave = new Set<number>();
   private waveT = 0;
@@ -58,7 +71,9 @@ export class DungeonDirector implements Director {
     this.states = dungeon.rooms.map((r) => (r.type === 'start' ? 'cleared' : 'unvisited'));
     this.revealedRooms = new Uint8Array(dungeon.rooms.length);
     this.revealedCorridors = new Uint8Array(dungeon.corridors.length);
-    for (const o of dungeon.objects) sim.addObject(o.kind, o.x, o.y, o.roomId, o.kind !== 'stairs');
+    sim.depth = dungeon.depth;
+    sim.setTraps(dungeon.traps);
+    for (const o of dungeon.objects) sim.addObject(o.kind, o.x, o.y, o.roomId, o.kind !== 'stairs', 'treasure');
     this.reveal(dungeon.startRoom);
     this.currentRoom = dungeon.startRoom;
   }
@@ -88,6 +103,13 @@ export class DungeonDirector implements Director {
     }
 
     const active = this.activeRoom;
+    if (this.bossId !== null) {
+      const boss = this.sim.getEnemy(this.bossId);
+      if (!boss || boss.state === 'dead') {
+        this.bossId = null;
+        this.sim.killMinions();
+      }
+    }
     if (active && this.sim.livingEnemyCount() === 0) {
       if (this.waves.length > 0) {
         this.waveT -= dt;
@@ -109,7 +131,8 @@ export class DungeonDirector implements Director {
         o.used = true;
         this.sim.emit({ type: 'chest', x: o.x, y: o.y });
         for (let i = 0; i < 4; i++) this.sim.addPickup('ash', o.x, o.y, 1);
-        this.sim.queueChoice('chest');
+        this.sim.dropItem(o.loot, o.x, o.y);
+        if (o.loot === 'treasure') this.sim.queueChoice('chest');
       } else if (o.kind === 'shrine') {
         o.used = true;
         const healed = this.sim.heal(h.stats.maxHp * RUN.shrineHealFraction);
@@ -145,6 +168,13 @@ export class DungeonDirector implements Director {
     }
     this.states[room.id] = 'active';
     this.setDoors(room, false);
+    if (room.type === 'exit') {
+      // the boss rises in the middle of its lair
+      this.waves = [];
+      const p = this.sim.walkableNear(room.cx, room.cy);
+      this.bossId = this.sim.spawnEnemy(biomeFor(this.dungeon.depth).boss, p.x, p.y).id;
+      return;
+    }
     this.waves = composeEncounter(room, this.dungeon.depth, this.sim.rng);
     this.spawnWave(room);
   }
@@ -173,9 +203,11 @@ export class DungeonDirector implements Director {
     this.sim.heal(this.sim.hero.stats.maxHp * RUN.roomClearHeal);
     if (room.type === 'elite') {
       const p = this.sim.walkableNear(room.cx, room.cy);
-      this.armAway(this.sim.addObject('chest', p.x, p.y, room.id, true).id, p.x, p.y);
+      this.armAway(this.sim.addObject('chest', p.x, p.y, room.id, true, 'elite').id, p.x, p.y);
     }
     if (room.type === 'exit') {
+      for (let i = 0; i < DROPS.bossItems; i++) this.sim.dropItem('boss', room.cx + (i - 0.5) * 1.2, room.cy + 1);
+      this.sim.heal(this.sim.hero.stats.maxHp * 0.3);
       for (const o of this.sim.objects) {
         if (o.kind === 'stairs' && o.roomId === room.id) {
           o.active = true;

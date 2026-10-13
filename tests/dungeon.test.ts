@@ -68,18 +68,26 @@ describe('encounters', () => {
     expect(elite1).toBeGreaterThan(combat1);
   });
 
-  it('elite and guardian rooms always bring a brute', () => {
+  it('elite rooms always bring a brute; each floor uses its own roster', () => {
     const rng = new Rng(8);
-    for (let i = 0; i < 20; i++) {
-      expect(composeEncounter(room('elite'), 1, rng).flat()).toContain('brute');
-      expect(composeEncounter(room('exit'), 1, rng).flat()).toContain('brute');
+    for (let i = 0; i < 20; i++) expect(composeEncounter(room('elite'), 1, rng).flat()).toContain('brute');
+    const floor1 = new Set<string>();
+    const floor2 = new Set<string>();
+    const floor3 = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      composeEncounter(room('combat'), 1, rng).flat().forEach((k) => floor1.add(k));
+      composeEncounter(room('combat'), 2, rng).flat().forEach((k) => floor2.add(k));
+      composeEncounter(room('combat'), 3, rng).flat().forEach((k) => floor3.add(k));
     }
+    expect(floor1.has('hound') || floor1.has('pyre')).toBe(false);
+    expect(floor2.has('hound')).toBe(true);
+    expect(floor3.has('pyre')).toBe(true);
   });
 });
 
 function dungeonRun(seed = 7) {
   const d = generateDungeon(seed, 1);
-  const sim = new Simulation(d.map, { seed, build: { heroId: 'warden', skillId: 'sunder', ranks: { ...NO_RANKS } } });
+  const sim = new Simulation(d.map, { seed, build: { heroId: 'warden', skillId: 'sunder', ranks: { ...NO_RANKS }, gear: [] } });
   const director = new DungeonDirector(sim, d);
   sim.director = director;
   return { d, sim, director };

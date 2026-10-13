@@ -1,3 +1,5 @@
+import { STICK_RADIUS, stickVector } from './stick';
+
 /**
  * Player input from the DOM: a floating virtual joystick (left thumb), dodge and
  * skill buttons (right thumb), and keyboard for desktop testing.
@@ -10,15 +12,6 @@ export interface PolledInput {
   dodge: boolean;
   skill: boolean;
 }
-
-const STICK_RADIUS = 52;
-const DEAD_ZONE = 0.12;
-/**
- * Stick travel (fraction of the radius) at which the hero reaches full speed.
- * A purely linear stick made speed depend on how far the thumb happened to drift,
- * which read as "sometimes fast, sometimes slow". Past this point it's always full speed.
- */
-const FULL_SPEED_AT = 0.45;
 
 const MOVE_KEYS: Record<string, [number, number]> = {
   KeyW: [0, -1],
@@ -120,23 +113,16 @@ export class Controls {
   private stickMove(e: PointerEvent): void {
     if (e.pointerId !== this.stickId) return;
     e.preventDefault();
-    let dx = e.clientX - this.baseX;
-    let dy = e.clientY - this.baseY;
-    const len = Math.hypot(dx, dy);
-    if (len > STICK_RADIUS) {
-      dx = (dx / len) * STICK_RADIUS;
-      dy = (dy / len) * STICK_RADIUS;
+    const out = stickVector(e.clientX - this.baseX, e.clientY - this.baseY);
+    if (out.baseShiftX !== 0 || out.baseShiftY !== 0) {
+      // floating stick: the base follows a thumb that slides past the ring
+      this.baseX += out.baseShiftX;
+      this.baseY += out.baseShiftY;
+      this.stick.style.transform = `translate(${this.baseX}px, ${this.baseY}px)`;
     }
-    this.knob.style.transform = `translate(${dx}px, ${dy}px)`;
-    const m = Math.min(1, len / STICK_RADIUS);
-    if (m < DEAD_ZONE) {
-      this.vx = this.vy = 0;
-    } else {
-      // a short ramp past the dead zone for fine positioning, then full speed
-      const mag = Math.min(1, (m - DEAD_ZONE) / (FULL_SPEED_AT - DEAD_ZONE));
-      this.vx = (dx / len) * mag;
-      this.vy = (dy / len) * mag;
-    }
+    this.knob.style.transform = `translate(${out.knobX}px, ${out.knobY}px)`;
+    this.vx = out.x;
+    this.vy = out.y;
   }
 
   private stickUp(e: PointerEvent): void {

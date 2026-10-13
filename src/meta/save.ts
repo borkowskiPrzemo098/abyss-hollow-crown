@@ -1,4 +1,7 @@
+import type { HeroId } from '../config/heroes';
+import { BASES, DROPS, SLOTS, type Item, type Slot } from '../config/items';
 import { NO_RANKS, RANKS, type MetaRanks, type RankId } from '../config/progression';
+import { isItem, salvageValue } from '../sim/loot';
 
 /**
  * Persistent progress, stored in IndexedDB.
@@ -7,7 +10,9 @@ import { NO_RANKS, RANKS, type MetaRanks, type RankId } from '../config/progress
  *  - A failed or corrupted read never overwrites good data: the game keeps
  *    running on defaults and only replaces the save after an explicit choice.
  */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+
+export type Loadout = Record<Slot, string | null>;
 
 export interface SaveData {
   version: number;
@@ -15,7 +20,11 @@ export interface SaveData {
   ranks: MetaRanks;
   settings: { volume: number; muted: boolean };
   stats: { runs: number; wins: number; bestFloor: number; kills: number };
+  /** Every item owned (equipped ones included), and what each hero wears. */
+  inventory: { items: Item[]; equipped: Record<HeroId, Loadout> };
 }
+
+const emptyLoadout = (): Loadout => ({ weapon: null, helmet: null, armor: null, amulet: null, ring: null });
 
 export function defaultSave(): SaveData {
   return {
@@ -24,6 +33,7 @@ export function defaultSave(): SaveData {
     ranks: { ...NO_RANKS },
     settings: { volume: 0.7, muted: false },
     stats: { runs: 0, wins: 0, bestFloor: 0, kills: 0 },
+    inventory: { items: [], equipped: { warden: emptyLoadout(), wanderer: emptyLoadout() } },
   };
 }
 
@@ -62,7 +72,82 @@ export function parseSave(raw: unknown): SaveData | null {
     out.stats.bestFloor = num(st.bestFloor, 0, 1e6) ?? 0;
     out.stats.kills = num(st.kills, 0, 1e12) ?? 0;
   }
+  // v1 saves have no inventory: they migrate to an empty one
+  const inv = r.inventory as { items?: unknown; equipped?: Record<string, Record<string, unknown>> } | undefined;
+  if (version >= 2) {
+    if (!inv || !Array.isArray(inv.items)) return null;
+    for (const it of inv.items) if (isItem(it)) out.inventory.items.push(it);
+    const owned = new Set(out.inventory.items.map((i) => i.uid));
+    for (const hero of ['warden', 'wanderer'] as const) {
+      const src = inv.equipped?.[hero];
+      for (const slot of SLOTS) {
+        const uid = src?.[slot];
+        out.inventory.equipped[hero][slot] = typeof uid === 'string' && owned.has(uid) ? uid : null;
+      }
+    }
+  }
   return out;
+}
+
+/** Items a hero currently wears. */
+export function equippedItems(save: SaveData, hero: HeroId): Item[] {
+  const lo = save.inventory.equipped[hero];
+  return SLOTS.map((s) => save.inventory.items.find((i) => i.uid === lo[s])).filter((i): i is Item => !!i);
+}
+
+/** Owned items not worn by anyone. */
+export function bagItems(save: SaveData): Item[] {
+  const worn = new Set(Object.values(save.inventory.equipped).flatMap((lo) => Object.values(lo)));
+  return save.inventory.items.filter((i) => !worn.has(i.uid));
+}
+
+export function canEquip(item: Item, hero: HeroId): boolean {
+  const b = BASES[item.base];
+  return !!b && (!b.hero || b.hero === hero);
+}
+
+/** Puts an item on (replacing whatever was in the slot). */
+export function equip(save: SaveData, hero: HeroId, uid: string): boolean {
+  const item = save.inventory.items.find((i) => i.uid === uid);
+  if (!item || !canEquip(item, hero)) return false;
+  const slot = BASES[item.base]!.slot;
+  // an item can only be worn by one hero at a time
+  for (const lo of Object.values(save.inventory.equipped)) for (const s of SLOTS) if (lo[s] === uid) lo[s] = null;
+  save.inventory.equipped[hero][slot] = uid;
+  return true;
+}
+
+export function unequip(save: SaveData, hero: HeroId, slot: Slot): void {
+  save.inventory.equipped[hero][slot] = null;
+}
+
+/**
+ * Adds a found item. If the hero has nothing in that slot it is put on straight away.
+ * With a full bag the item is broken down into ash instead (returns the ash gained).
+ */
+export function addItem(save: SaveData, item: Item, hero: HeroId): { equipped: boolean; salvaged: number } {
+  if (bagItems(save).length >= DROPS.bagSize) {
+    const ash = salvageValue(item);
+    save.ash += ash;
+    return { equipped: false, salvaged: ash };
+  }
+  save.inventory.items.push(item);
+  const slot = BASES[item.base]!.slot;
+  if (canEquip(item, hero) && !save.inventory.equipped[hero][slot]) {
+    equip(save, hero, item.uid);
+    return { equipped: true, salvaged: 0 };
+  }
+  return { equipped: false, salvaged: 0 };
+}
+
+/** Breaks an unworn item down into ash. */
+export function salvage(save: SaveData, uid: string): number {
+  if (!bagItems(save).some((i) => i.uid === uid)) return 0;
+  const item = save.inventory.items.find((i) => i.uid === uid)!;
+  save.inventory.items = save.inventory.items.filter((i) => i.uid !== uid);
+  const ash = salvageValue(item);
+  save.ash += ash;
+  return ash;
 }
 
 /** Cost of the next rank, or null when maxed. */

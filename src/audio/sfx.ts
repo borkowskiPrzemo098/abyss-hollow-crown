@@ -36,7 +36,17 @@ export type SfxName =
   | 'pickup'
   | 'stairs'
   | 'heroDeath'
-  | 'ui';
+  | 'ui'
+  | 'roar'
+  | 'bossDeath'
+  | 'blast'
+  | 'spike'
+  | 'vent'
+  | 'frost'
+  | 'zap'
+  | 'barrier'
+  | 'loot'
+  | 'legendary';
 
 type AudioSessionNavigator = Navigator & { audioSession?: { type: string } };
 
@@ -194,6 +204,16 @@ export class Sfx {
         case 'stairs': this.tone(220, 55, 1.2, 0.35, 'sine'); this.noiseSweep(1200, 80, 1, 0.2, 'lowpass'); break;
         case 'heroDeath': this.tone(110, 40, 1.4, 0.5, 'sawtooth', 500); break;
         case 'ui': this.tone(660, 660, 0.06, 0.1, 'triangle'); break;
+        case 'roar': this.tone(70, 45, 0.9, 0.6, 'sawtooth', 420); this.noiseSweep(400, 90, 0.8, 0.4, 'lowpass'); break;
+        case 'bossDeath': this.tone(140, 35, 1.8, 0.7, 'sawtooth', 500); this.noiseSweep(1500, 60, 1.5, 0.5, 'lowpass'); [392, 494, 587, 784].forEach((f, i) => this.tone(f, f, 0.8, 0.1, 'sine', 0, 0.6 + i * 0.12)); break;
+        case 'blast': this.tone(110, 40, 0.3, 0.6, 'sine'); this.noiseSweep(1400, 150, 0.28, 0.45, 'lowpass'); break;
+        case 'spike': this.noiseSweep(3000, 1500, 0.08, 0.25, 'highpass'); this.tone(500, 300, 0.06, 0.1, 'square', 1800); break;
+        case 'vent': this.noiseSweep(300, 1200, 0.45, 0.35, 'bandpass'); break;
+        case 'frost': this.tone(1800, 900, 0.4, 0.12, 'sine'); this.noiseSweep(6000, 2500, 0.35, 0.18, 'highpass'); break;
+        case 'zap': this.noiseSweep(5000, 800, 0.12, 0.3, 'bandpass'); this.tone(1200, 200, 0.1, 0.12, 'square', 3000); break;
+        case 'barrier': this.tone(700, 500, 0.15, 0.15, 'triangle'); break;
+        case 'loot': [660, 880].forEach((f, i) => this.tone(f, f, 0.2, 0.12, 'triangle', 0, i * 0.06)); break;
+        case 'legendary': [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, f, 0.6, 0.13, 'sine', 0, i * 0.09)); break;
       }
     } catch {
       /* audio is optional */

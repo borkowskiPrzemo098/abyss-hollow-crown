@@ -1,13 +1,17 @@
 import Phaser from 'phaser';
 import type { Sfx } from '../audio/sfx';
-import { MAX_STEPS_PER_FRAME, SIM_DT } from '../config/balance';
+import { ENEMIES, MAX_STEPS_PER_FRAME, SIM_DT } from '../config/balance';
+import { biomeFor } from '../config/biomes';
+import { BASES, RARITY, SLOT_NAMES, type Item, type Slot } from '../config/items';
 import { HEROES, type HeroId } from '../config/heroes';
 import { RUN, xpToNext, type RankId } from '../config/progression';
 import { SKILLS, type SkillId } from '../config/skills';
 import type { UpgradeId } from '../config/upgrades';
 import { screenDirToWorld, worldDirToScreenAngle, worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Controls } from '../input/controls';
-import { bankRun, buyRank, type SaveStore } from '../meta/save';
+import { addItem, bankRun, buyRank, equip, equippedItems, salvage, unequip, type SaveStore } from '../meta/save';
+import { computeStats, emptyUpgrades } from '../sim/stats';
+import { InventoryScreen } from '../ui/inventory';
 import { EnemyView, HeroView } from '../render/actorView';
 import { EntityViews } from '../render/entityViews';
 import { Fx } from '../render/fx';
@@ -61,6 +65,9 @@ export class GameScene extends Phaser.Scene {
   run: RunState | null = null;
   private services!: Services;
   private menus!: Menus;
+  private inventory!: InventoryScreen;
+  /** Where the inventory's back button goes. */
+  private invReturn: 'title' | 'game' = 'title';
   private minimap!: Minimap;
   private world: WorldView | null = null;
   private fx!: Fx;
@@ -92,6 +99,23 @@ export class GameScene extends Phaser.Scene {
     this.entities = new EntityViews(this);
     this.minimap = new Minimap(document.getElementById('minimap') as HTMLCanvasElement);
     this.menus = new Menus(this.menuActions(), (k) => this.portrait(k));
+    this.inventory = new InventoryScreen({
+      equip: (hero, uid) => {
+        if (equip(this.services.save.data, hero, uid)) this.gearChanged(hero);
+      },
+      unequip: (hero, slot: Slot) => {
+        unequip(this.services.save.data, hero, slot);
+        this.gearChanged(hero);
+      },
+      salvage: (uid) => {
+        if (salvage(this.services.save.data, uid) > 0) {
+          this.services.sfx.play('pickup');
+          this.persist();
+        }
+      },
+      statsFor: (hero, gear) =>
+        computeStats(HEROES[hero], this.services.save.data.ranks, this.run && this.sim.hero.cls.id === hero ? this.sim.hero.upgrades : emptyUpgrades(), gear),
+    });
 
     const { hud, controls, sfx, save } = this.services;
     this.menus.setVolume(save.data.settings.volume);
@@ -100,6 +124,7 @@ export class GameScene extends Phaser.Scene {
     sfx.setMuted(save.data.settings.muted);
     hud.onPause = () => this.pauseGame();
     hud.onHero = () => this.pauseGame();
+    hud.onBag = () => this.openInventoryInRun();
     const toggle = () => {
       if (this.mode === 'playing') this.pauseGame();
       else if (this.mode === 'paused') this.resumeGame();
@@ -169,6 +194,12 @@ export class GameScene extends Phaser.Scene {
         click();
         this.startRun(this.pendingHero, id);
       },
+      openInventory: () => {
+        click();
+        this.invReturn = 'title';
+        this.inventory.open(this.services.save.data, this.pendingHero, false);
+        this.menus.show('inv');
+      },
       openSanctuary: () => {
         click();
         this.sanctReturn = this.menus.current === 'end' ? 'end' : 'title';
@@ -184,6 +215,10 @@ export class GameScene extends Phaser.Scene {
       back: () => {
         click();
         const cur = this.menus.current;
+        if (cur === 'inv' && this.invReturn === 'game') {
+          this.closeInventoryInRun();
+          return;
+        }
         if (cur === 'skill') this.menus.show('hero');
         else if (cur === 'sanct' && this.sanctReturn === 'end') this.menus.show('end');
         else this.toTitle();
@@ -230,7 +265,7 @@ export class GameScene extends Phaser.Scene {
 
   /** A quiet dungeon start room behind the menus. */
   private showMenuWorld(): void {
-    const build: HeroBuild = { heroId: 'warden', skillId: 'sunder', ranks: { ...this.services.save.data.ranks } };
+    const build: HeroBuild = { heroId: 'warden', skillId: 'sunder', ranks: { ...this.services.save.data.ranks }, gear: [] };
     const d = generateDungeon(20261013, 1);
     this.sim = new Simulation(d.map, { seed: 1, build });
     this.setupFloor(d, build.heroId);
@@ -244,7 +279,7 @@ export class GameScene extends Phaser.Scene {
 
   startRun(heroId: HeroId, skillId: SkillId): void {
     const { hud, controls, sfx, save } = this.services;
-    const build: HeroBuild = { heroId, skillId, ranks: { ...save.data.ranks } };
+    const build: HeroBuild = { heroId, skillId, ranks: { ...save.data.ranks }, gear: equippedItems(save.data, heroId) };
     const seed = this.seedFromUrl();
     this.run = { build, seed, depth: 1, time: 0 };
     const d = generateDungeon(seed, 1);
@@ -257,7 +292,8 @@ export class GameScene extends Phaser.Scene {
     controls.enabled = true;
     sfx.setAmbience(true);
     this.mode = 'playing';
-    hud.showBanner('Poziom 1', `${HEROES[heroId].name} schodzi w Otchłań`);
+    const b1 = biomeFor(1);
+    hud.showBanner(b1.name, b1.sub, 3);
   }
 
   private setupFloor(d: Dungeon, heroId: HeroId): void {
@@ -306,7 +342,8 @@ export class GameScene extends Phaser.Scene {
     this.sim.loadMap(d.map);
     this.setupFloor(d, run.build.heroId);
     hud.fadeIn();
-    hud.showBanner(`Poziom ${next}`, next === RUN.floors ? 'Ostatni poziom. Schody prowadzą na powierzchnię.' : 'Głębiej jest ciemniej — i groźniej');
+    const bio = biomeFor(next);
+    hud.showBanner(bio.name, bio.sub, 3);
     controls.enabled = true;
     this.mode = 'playing';
   }
@@ -332,7 +369,7 @@ export class GameScene extends Phaser.Scene {
       bonus: RUN.victoryAshBonus,
     });
     if (this.saving) void save.save();
-    this.menus.renderEnd({ won, floor: run.depth, kills: this.sim.kills, level: this.sim.hero.level, seconds: run.time, ashKept: gained });
+    this.menus.renderEnd({ won, floor: run.depth, kills: this.sim.kills, level: this.sim.hero.level, seconds: run.time, ashKept: gained, loot: [...this.sim.loot] });
     this.menus.show('end');
     this.run = null;
   }
@@ -358,6 +395,55 @@ export class GameScene extends Phaser.Scene {
     this.services.controls.release();
     this.services.controls.enabled = true;
     this.mode = 'playing';
+  }
+
+  private persist(): void {
+    if (this.saving) void this.services.save.save();
+  }
+
+  /** After equipping/unequipping: save, and if that hero is in the dungeon, re-derive its stats. */
+  private gearChanged(hero: HeroId): void {
+    this.services.sfx.play('ui');
+    this.persist();
+    if (this.run && this.sim.hero.cls.id === hero) this.sim.setGear(equippedItems(this.services.save.data, hero));
+  }
+
+  /** The bag button: the world pauses while you change gear. */
+  private openInventoryInRun(): void {
+    if (this.mode !== 'playing') return;
+    this.mode = 'paused';
+    this.services.controls.enabled = false;
+    this.services.controls.release();
+    this.services.hud.clearBanner();
+    this.services.hud.show(false);
+    this.invReturn = 'game';
+    this.inventory.open(this.services.save.data, this.sim.hero.cls.id, true);
+    this.menus.show('inv');
+    this.scene.pause();
+  }
+
+  private closeInventoryInRun(): void {
+    this.scene.resume();
+    this.menus.show(null);
+    this.services.hud.show(true);
+    this.services.controls.release();
+    this.services.controls.enabled = true;
+    this.mode = 'playing';
+  }
+
+  /** A picked-up item goes straight into the saved inventory. */
+  private onLoot(item: Item): void {
+    const { hud, sfx, save } = this.services;
+    const hero = this.sim.hero.cls.id;
+    const res = addItem(save.data, item, hero);
+    const r = RARITY[item.rarity];
+    const slot = SLOT_NAMES[BASES[item.base]!.slot];
+    if (res.salvaged > 0) hud.toast(`Torba pełna — <b>${item.name}</b> rozbity na ${res.salvaged} popiołu`, r.css);
+    else hud.toast(`<b>${item.name}</b> · ${r.name.toLowerCase()} ${slot.toLowerCase()}${res.equipped ? ' — założony' : ''}`, r.css);
+    if (res.equipped) this.sim.setGear(equippedItems(save.data, hero));
+    sfx.play(item.rarity === 'legendary' ? 'legendary' : 'loot');
+    if (item.rarity === 'legendary') hud.showBanner(item.name, 'Przedmiot legendarny', 2.4);
+    this.persist();
   }
 
   private openChoice(): void {
@@ -445,7 +531,7 @@ export class GameScene extends Phaser.Scene {
       alive.add(e.id);
       let v = this.enemyViews.get(e.id);
       if (!v) {
-        v = new EnemyView(this, e);
+        v = new EnemyView(this, e, e.def.boss ? 0xffffff : biomeFor(this.dungeon.depth).enemyTint);
         this.enemyViews.set(e.id, v);
       }
       v.update(e, lerp(e.px, e.x, alpha), lerp(e.py, e.y, alpha), dt, t);
@@ -463,6 +549,7 @@ export class GameScene extends Phaser.Scene {
       this.lastReveal = this.director.revealVersion;
     }
     world.updateDoors();
+    world.updateTraps(sim, t);
     world.update(t);
     world.updateOcclusion(hv.sx, hv.sy, hv.root.depth);
     this.entities.sync(sim, alpha, t, (roomId) => world.isRevealed(roomId));
@@ -475,6 +562,17 @@ export class GameScene extends Phaser.Scene {
         this.minimapT = 0.1;
         this.minimap.draw(this.dungeon, this.director, sim, t);
       }
+      const boss = this.director.bossId !== null ? sim.getEnemy(this.director.bossId) : undefined;
+      this.services.hud.setBoss(
+        boss && boss.state !== 'dead' && boss.state !== 'spawning'
+          ? { name: boss.def.name, title: boss.def.boss!.title, hp: boss.hp, maxHp: boss.maxHp, phase: boss.phase }
+          : null,
+      );
+      const chips: { id: string; label: string; cd: number; active: boolean }[] = [];
+      if (h.stats.frostShell) chips.push({ id: 'frostShell', label: '', cd: h.frostCd / 10, active: h.frostCd <= 0 });
+      if (h.stats.barrierMax > 0) chips.push({ id: 'barrier', label: String(Math.ceil(h.barrier)), cd: 0, active: h.barrier > 0 });
+      if (h.stats.frenzy) chips.push({ id: 'frenzy', label: '', cd: 0, active: h.frenzyT > 0 });
+      this.services.hud.setEffects(chips);
       this.services.hud.update(
         {
           hp: h.hp,
@@ -526,7 +624,8 @@ export class GameScene extends Phaser.Scene {
         v?.onHit();
         const p = this.screenOf(ev.x, ev.y);
         const head = v ? v.headY : -48;
-        this.fx.floater(p.x, p.y + head - 6, ev.crit ? `${ev.amount}!` : String(ev.amount), ev.crit ? 'crit' : 'hit');
+        this.fx.floater(p.x, p.y + head - 6, ev.crit ? `${ev.amount}!` : String(ev.amount), ev.crit ? 'crit' : ev.source === 'burn' ? 'burn' : ev.source === 'chain' ? 'evade' : 'hit');
+        if (ev.source === 'burn') break;
         this.fx.sparksAt(p.x, p.y + head * 0.45, ev.crit ? 14 : 6);
         this.fx.boneAt(p.x, p.y + head * 0.45, ev.source === 'skill' ? 6 : 3);
         if (ev.source === 'attack') {
@@ -664,6 +763,92 @@ export class GameScene extends Phaser.Scene {
       case 'spawn':
         sfx.play('spawn');
         break;
+      case 'loot':
+        this.onLoot(ev.item);
+        break;
+      case 'bossSpawn': {
+        const def = ENEMIES[ev.kind];
+        hud.showBanner(def.name, def.boss?.title ?? '', 2.8);
+        sfx.play('roar');
+        this.fx.shake(0.008, 400);
+        break;
+      }
+      case 'bossPhase': {
+        const v = this.enemyViews.get(ev.id);
+        hud.showBanner('Gniew', 'Druga faza — nowe ataki, krótsze ostrzeżenia', 2.2);
+        if (v) this.fx.ring(v.sx, v.sy, 3, PAL.danger, 0.6);
+        sfx.play('roar');
+        this.fx.shake(0.012, 500);
+        break;
+      }
+      case 'bossDeath': {
+        const p = this.screenOf(ev.x, ev.y);
+        hud.showBanner(`Pokonany: ${ENEMIES[ev.kind].name}`, 'Łup leży na ziemi. Schody w dół są otwarte.', 3);
+        this.fx.soulAt(p.x, p.y - 30, 30);
+        this.fx.ring(p.x, p.y, 3.5, PAL.gold, 0.8);
+        this.fx.shake(0.016, 600);
+        sfx.play('bossDeath');
+        break;
+      }
+      case 'enemyCharge':
+        sfx.play('dash');
+        break;
+      case 'hazardBlast': {
+        const p = this.screenOf(ev.x, ev.y);
+        this.fx.ring(p.x, p.y, ev.radius, ev.kind === 'frost' ? 0x9fd8ff : 0xff7a3a, 0.3);
+        if (ev.kind === 'frost') this.fx.frostAt(p.x, p.y - 6, 14);
+        else this.fx.flamesAt(p.x, p.y - 4, 16);
+        this.fx.debrisAt(p.x, p.y, 8);
+        sfx.play('blast');
+        break;
+      }
+      case 'trapFire': {
+        const p = this.screenOf(ev.x, ev.y);
+        if (!this.world?.isRevealedAt(ev.x, ev.y)) break;
+        if (ev.kind === 'vent') {
+          this.fx.flamesAt(p.x, p.y - 6, 18);
+          sfx.play('vent');
+        } else {
+          this.fx.dustAt(p.x, p.y, 4);
+          sfx.play('spike');
+        }
+        break;
+      }
+      case 'frostShell': {
+        const p = this.screenOf(ev.x, ev.y);
+        this.fx.ring(p.x, p.y, ev.radius, 0x9fd8ff, 0.45);
+        this.fx.frostAt(p.x, p.y - 20, 24);
+        sfx.play('frost');
+        break;
+      }
+      case 'emberStep': {
+        const p = this.screenOf(ev.x, ev.y);
+        this.fx.ring(p.x, p.y, ev.radius, PAL.ember, 0.35);
+        this.fx.flamesAt(p.x, p.y - 4, 14);
+        sfx.play('blast');
+        break;
+      }
+      case 'nova': {
+        const p = this.screenOf(ev.x, ev.y);
+        this.fx.ring(p.x, p.y, ev.radius, PAL.hollow, 0.3);
+        this.fx.sparksAt(p.x, p.y - 20, 10);
+        break;
+      }
+      case 'chain':
+        this.fx.lightning(
+          ev.segments.map(([x0, y0, x1, y1]) => [worldToScreenX(x0, y0), worldToScreenY(x0, y0) - 22, worldToScreenX(x1, y1), worldToScreenY(x1, y1) - 22]),
+        );
+        sfx.play('zap');
+        break;
+      case 'barrierHit':
+        this.fx.floater(hv.sx, hv.sy - 62, ev.broken ? 'BARIERA PĘKA' : `-${Math.round(ev.absorbed)}`, 'evade');
+        sfx.play('barrier');
+        break;
+      case 'immune': {
+        const v = this.enemyViews.get(ev.id);
+        if (v) this.fx.floater(v.sx, v.sy + v.headY - 10, 'ODPORNY', 'evade');
+        break;
+      }
       case 'xp':
       case 'choice':
         break;

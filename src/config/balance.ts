@@ -50,7 +50,17 @@ export type StrikeShape =
   | { kind: 'cone'; radius: number; arcDeg: number }
   | { kind: 'circle'; offset: number; radius: number }
   /** A projectile fired along the locked aim; the telegraph is a line of `range` tiles. */
-  | { kind: 'bolt'; speed: number; radius: number; range: number };
+  | { kind: 'bolt'; speed: number; radius: number; range: number }
+  /** The attacker itself dashes along the locked aim; the telegraph is the dash lane. */
+  | { kind: 'charge'; distance: number; width: number; speed: number }
+  /** A ring of projectiles fired in every direction. */
+  | { kind: 'radial'; bolts: number; speed: number; radius: number; range: number }
+  /** Delayed blasts scattered around the hero; each shows its circle until it lands. */
+  | { kind: 'meteors'; count: number; radius: number; spread: number; delay: number }
+  /** One delayed blast on the hero's position (a lobbed bomb). */
+  | { kind: 'lob'; radius: number; delay: number }
+  /** Calls minions; their spawn sigils are the telegraph. */
+  | { kind: 'summon'; kinds: readonly EnemyKind[] };
 
 export interface EnemyDef {
   name: string;
@@ -67,22 +77,34 @@ export interface EnemyDef {
   ash: number;
   /** Ranged enemies try to hold this distance band from the hero instead of closing in. */
   keepAway?: { min: number; max: number };
-  attack: {
-    /** Distance at which the enemy commits to an attack. */
-    triggerRange: number;
-    windup: number;
-    /** Fraction of the wind-up during which aim still follows the hero; then it locks. */
-    trackFraction: number;
-    /** Max aim turn speed while tracking (deg/s). */
-    turnRate: number;
-    recovery: number;
-    cooldown: number;
-    damage: number;
-    shape: StrikeShape;
-  };
+  /** Regular enemies have one attack; bosses rotate through their phase lists instead. */
+  attack: EnemyAttack;
+  boss?: BossDef;
+  /** Visual scale of the rig. */
+  scale?: number;
 }
 
-export type EnemyKind = 'thrall' | 'brute' | 'acolyte';
+export type EnemyKind = 'thrall' | 'brute' | 'acolyte' | 'hound' | 'pyre' | 'bossCrypt' | 'bossFrost' | 'bossKing';
+
+export interface EnemyAttack {
+  /** Distance at which the enemy commits to this attack. */
+  triggerRange: number;
+  windup: number;
+  trackFraction: number;
+  turnRate: number;
+  recovery: number;
+  cooldown: number;
+  damage: number;
+  shape: StrikeShape;
+}
+
+export interface BossDef {
+  title: string;
+  /** Attack rotations for phase 1 and phase 2 (below half health). */
+  phases: readonly [readonly EnemyAttack[], readonly EnemyAttack[]];
+  /** Invulnerable roar when phase 2 begins. */
+  roar: number;
+}
 
 export const ENEMIES: Record<EnemyKind, EnemyDef> = {
   /** Fast, fragile melee swarmer. Telegraphs a short claw cone. */
@@ -153,6 +175,177 @@ export const ENEMIES: Record<EnemyKind, EnemyDef> = {
       cooldown: 2.4,
       damage: 11,
       shape: { kind: 'bolt', speed: 6.5, radius: 0.24, range: 9 },
+    },
+  },
+  /** Frost hound (Lodowe Groby+): telegraphs a lane, then charges through it. */
+  hound: {
+    name: 'Ogar Szronu',
+    maxHp: 58,
+    radius: 0.36,
+    speed: 2.9,
+    mass: 1.4,
+    poise: 0.2,
+    stunTaken: 1,
+    spawnTime: 0.9,
+    xp: 6,
+    ash: 2,
+    attack: {
+      triggerRange: 4.6,
+      windup: 0.7,
+      trackFraction: 0.35,
+      turnRate: 200,
+      recovery: 0.7,
+      cooldown: 2.2,
+      damage: 14,
+      shape: { kind: 'charge', distance: 5, width: 0.55, speed: 13 },
+    },
+  },
+  /** Pyre-keeper (Kuźnie Otchłani): keeps away and lobs fire bombs onto the hero's spot. */
+  pyre: {
+    name: 'Ogniomistrz',
+    maxHp: 40,
+    radius: 0.32,
+    speed: 2.0,
+    mass: 1,
+    poise: 0,
+    stunTaken: 1.1,
+    spawnTime: 1.0,
+    xp: 6,
+    ash: 2,
+    keepAway: { min: 3.5, max: 6.5 },
+    attack: {
+      triggerRange: 7.5,
+      windup: 0.55,
+      trackFraction: 1,
+      turnRate: 360,
+      recovery: 0.6,
+      cooldown: 2.8,
+      damage: 16,
+      shape: { kind: 'lob', radius: 1.25, delay: 1.0 },
+    },
+  },
+  /** Floor 1 boss: a giant in crypt armour. Sweeps, slams and charges; later calls the dead. */
+  bossCrypt: {
+    name: 'Strażnik Krypt',
+    maxHp: 1100,
+    radius: 0.78,
+    speed: 1.75,
+    mass: 40,
+    poise: 1,
+    stunTaken: 0.25,
+    spawnTime: 1.6,
+    xp: 60,
+    ash: 30,
+    scale: 1.7,
+    attack: {
+      triggerRange: 2.4,
+      windup: 0.9,
+      trackFraction: 0.3,
+      turnRate: 120,
+      recovery: 0.9,
+      cooldown: 0.6,
+      damage: 22,
+      shape: { kind: 'cone', radius: 2.5, arcDeg: 140 },
+    },
+    boss: {
+      title: 'Ten, który pilnuje zejścia',
+      roar: 1.4,
+      phases: [
+        [
+          { triggerRange: 2.4, windup: 0.9, trackFraction: 0.3, turnRate: 120, recovery: 0.9, cooldown: 0.6, damage: 22, shape: { kind: 'cone', radius: 2.5, arcDeg: 140 } },
+          { triggerRange: 2.6, windup: 1.1, trackFraction: 0.25, turnRate: 100, recovery: 1.2, cooldown: 0.6, damage: 30, shape: { kind: 'circle', offset: 1.4, radius: 1.6 } },
+          { triggerRange: 7, windup: 0.95, trackFraction: 0.4, turnRate: 140, recovery: 1.3, cooldown: 0.8, damage: 26, shape: { kind: 'charge', distance: 6.5, width: 0.85, speed: 11 } },
+        ],
+        [
+          { triggerRange: 2.4, windup: 0.75, trackFraction: 0.3, turnRate: 140, recovery: 0.7, cooldown: 0.4, damage: 24, shape: { kind: 'cone', radius: 2.6, arcDeg: 150 } },
+          { triggerRange: 9, windup: 0.9, trackFraction: 0, turnRate: 0, recovery: 1, cooldown: 0.6, damage: 12, shape: { kind: 'radial', bolts: 10, speed: 5, radius: 0.26, range: 9 } },
+          { triggerRange: 7, windup: 0.8, trackFraction: 0.4, turnRate: 160, recovery: 1.1, cooldown: 0.6, damage: 28, shape: { kind: 'charge', distance: 7, width: 0.85, speed: 12 } },
+          { triggerRange: 20, windup: 0.8, trackFraction: 0, turnRate: 0, recovery: 0.6, cooldown: 0.6, damage: 0, shape: { kind: 'summon', kinds: ['thrall', 'thrall', 'thrall'] } },
+        ],
+      ],
+    },
+  },
+  /** Floor 2 boss: a frost queen who fights from a distance with shard rings and falling ice. */
+  bossFrost: {
+    name: 'Królowa Szronu',
+    maxHp: 1250,
+    radius: 0.6,
+    speed: 2.0,
+    mass: 40,
+    poise: 1,
+    stunTaken: 0.25,
+    spawnTime: 1.6,
+    xp: 80,
+    ash: 40,
+    scale: 1.6,
+    keepAway: { min: 3.5, max: 6.5 },
+    attack: {
+      triggerRange: 9,
+      windup: 0.9,
+      trackFraction: 0,
+      turnRate: 0,
+      recovery: 0.8,
+      cooldown: 0.7,
+      damage: 12,
+      shape: { kind: 'radial', bolts: 12, speed: 5.5, radius: 0.24, range: 10 },
+    },
+    boss: {
+      title: 'Lód pamięta każde serce',
+      roar: 1.4,
+      phases: [
+        [
+          { triggerRange: 9, windup: 0.9, trackFraction: 0, turnRate: 0, recovery: 0.8, cooldown: 0.7, damage: 12, shape: { kind: 'radial', bolts: 12, speed: 5.5, radius: 0.24, range: 10 } },
+          { triggerRange: 10, windup: 0.6, trackFraction: 0, turnRate: 0, recovery: 0.7, cooldown: 0.7, damage: 20, shape: { kind: 'meteors', count: 4, radius: 1.1, spread: 2.4, delay: 1.3 } },
+          { triggerRange: 20, windup: 0.8, trackFraction: 0, turnRate: 0, recovery: 0.6, cooldown: 0.8, damage: 0, shape: { kind: 'summon', kinds: ['hound', 'hound'] } },
+        ],
+        [
+          { triggerRange: 9, windup: 0.8, trackFraction: 0, turnRate: 0, recovery: 0.6, cooldown: 0.5, damage: 13, shape: { kind: 'radial', bolts: 18, speed: 5.5, radius: 0.24, range: 10 } },
+          { triggerRange: 10, windup: 0.55, trackFraction: 0, turnRate: 0, recovery: 0.6, cooldown: 0.5, damage: 22, shape: { kind: 'meteors', count: 6, radius: 1.15, spread: 3, delay: 1.2 } },
+          { triggerRange: 3.2, windup: 0.95, trackFraction: 0.35, turnRate: 140, recovery: 0.9, cooldown: 0.6, damage: 24, shape: { kind: 'cone', radius: 3.2, arcDeg: 70 } },
+          { triggerRange: 20, windup: 0.8, trackFraction: 0, turnRate: 0, recovery: 0.6, cooldown: 0.8, damage: 0, shape: { kind: 'summon', kinds: ['hound', 'thrall', 'thrall'] } },
+        ],
+      ],
+    },
+  },
+  /** Floor 3 boss: the Hollow King, wearer of the empty crown. Blade, fire and the dead. */
+  bossKing: {
+    name: 'Pusty Król',
+    maxHp: 1600,
+    radius: 0.7,
+    speed: 2.05,
+    mass: 40,
+    poise: 1,
+    stunTaken: 0.2,
+    spawnTime: 1.8,
+    xp: 120,
+    ash: 60,
+    scale: 1.75,
+    attack: {
+      triggerRange: 2.6,
+      windup: 0.85,
+      trackFraction: 0.3,
+      turnRate: 140,
+      recovery: 0.8,
+      cooldown: 0.5,
+      damage: 26,
+      shape: { kind: 'cone', radius: 2.7, arcDeg: 150 },
+    },
+    boss: {
+      title: 'Korona leży pusta. Tron — nie',
+      roar: 1.6,
+      phases: [
+        [
+          { triggerRange: 2.6, windup: 0.85, trackFraction: 0.3, turnRate: 140, recovery: 0.8, cooldown: 0.5, damage: 26, shape: { kind: 'cone', radius: 2.7, arcDeg: 150 } },
+          { triggerRange: 10, windup: 0.7, trackFraction: 0, turnRate: 0, recovery: 0.7, cooldown: 0.6, damage: 24, shape: { kind: 'meteors', count: 5, radius: 1.2, spread: 3, delay: 1.2 } },
+          { triggerRange: 7.5, windup: 0.85, trackFraction: 0.4, turnRate: 160, recovery: 1.1, cooldown: 0.6, damage: 30, shape: { kind: 'charge', distance: 7.5, width: 0.9, speed: 12.5 } },
+        ],
+        [
+          { triggerRange: 2.6, windup: 0.7, trackFraction: 0.3, turnRate: 160, recovery: 0.6, cooldown: 0.4, damage: 28, shape: { kind: 'cone', radius: 2.8, arcDeg: 160 } },
+          { triggerRange: 9, windup: 0.8, trackFraction: 0, turnRate: 0, recovery: 0.8, cooldown: 0.5, damage: 14, shape: { kind: 'radial', bolts: 14, speed: 6, radius: 0.26, range: 10 } },
+          { triggerRange: 10, windup: 0.6, trackFraction: 0, turnRate: 0, recovery: 0.6, cooldown: 0.5, damage: 26, shape: { kind: 'meteors', count: 7, radius: 1.2, spread: 3.2, delay: 1.1 } },
+          { triggerRange: 20, windup: 0.9, trackFraction: 0, turnRate: 0, recovery: 0.6, cooldown: 0.8, damage: 0, shape: { kind: 'summon', kinds: ['pyre', 'thrall', 'thrall'] } },
+        ],
+      ],
     },
   },
 };

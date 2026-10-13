@@ -26,4 +26,4 @@ export const DUNGEON = {
   waveGap: 1.2,
 } as const;
 
-export const ENEMY_COST: Record<EnemyKind, number> = { thrall: 1, acolyte: 1.5, brute: 3 };
+export const ENEMY_COST: Record<EnemyKind, number> = { thrall: 1, acolyte: 1.5, brute: 3, hound: 2, pyre: 1.6, bossCrypt: 0, bossFrost: 0, bossKing: 0 };

@@ -1,18 +1,20 @@
 import { HEROES, type HeroId } from '../config/heroes';
 import { RANKS, RUN, type RankId } from '../config/progression';
 import { SKILLS, type SkillId } from '../config/skills';
+import { BASES, RARITY, type Item } from '../config/items';
 import { UPGRADES, type UpgradeId } from '../config/upgrades';
 import { nextRankCost, type SaveData } from '../meta/save';
 import type { Choice, Hero } from '../sim/types';
 import { $ } from './hud';
 
-export type ScreenId = 'title' | 'hero' | 'skill' | 'choice' | 'pause' | 'sanct' | 'end' | 'corrupt';
+export type ScreenId = 'title' | 'hero' | 'skill' | 'choice' | 'pause' | 'sanct' | 'inv' | 'end' | 'corrupt';
 
 export interface MenuActions {
   newRun(): void;
   pickHero(id: HeroId): void;
   pickSkill(id: SkillId): void;
   openSanctuary(): void;
+  openInventory(): void;
   buyRank(id: RankId): void;
   back(): void;
   choose(id: UpgradeId): void;
@@ -31,9 +33,10 @@ export interface RunSummary {
   level: number;
   seconds: number;
   ashKept: number;
+  loot: Item[];
 }
 
-const SCREENS: ScreenId[] = ['title', 'hero', 'skill', 'choice', 'pause', 'sanct', 'end', 'corrupt'];
+const SCREENS: ScreenId[] = ['title', 'hero', 'skill', 'choice', 'pause', 'sanct', 'inv', 'end', 'corrupt'];
 
 const icon = (id: string) => `<svg aria-hidden="true"><use href="#i-${id}" /></svg>`;
 const fmt = (v: number, digits = 1) => (Math.round(v * 10 ** digits) / 10 ** digits).toLocaleString('pl-PL');
@@ -46,6 +49,7 @@ export class Menus {
   constructor(act: MenuActions, private readonly portrait: (key: string) => string) {
     $('#btn-new').addEventListener('click', () => act.newRun());
     $('#btn-sanct').addEventListener('click', () => act.openSanctuary());
+    $('#btn-inv').addEventListener('click', () => act.openInventory());
     $('#btn-resume').addEventListener('click', () => act.resume());
     $('#btn-abandon').addEventListener('click', () => act.abandon());
     $('#btn-again').addEventListener('click', () => act.newRun());
@@ -237,5 +241,12 @@ export class Menus {
     const s = Math.floor(r.seconds % 60);
     $('#end-time').textContent = `${m}:${String(s).padStart(2, '0')}`;
     $('#end-ash').textContent = String(r.ashKept);
+    $('#end-loot').innerHTML = r.loot.length
+      ? '<p class="end-loot-h">Zdobyte przedmioty — zostają w ekwipunku</p><ul>' +
+        r.loot
+          .map((i) => '<li style="--r:' + RARITY[i.rarity].css + '"><svg aria-hidden="true"><use href="#' + BASES[i.base]!.icon + '" /></svg>' + i.name + '</li>')
+          .join('') +
+        '</ul>'
+      : '';
   }
 }

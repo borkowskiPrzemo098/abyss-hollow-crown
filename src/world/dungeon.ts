@@ -1,3 +1,4 @@
+import { biomeFor, type BiomeId, type TrapKind } from '../config/biomes';
 import { DUNGEON } from '../config/dungeon';
 import { Rng } from '../core/rng';
 import { Tile, isWalkable, type ArenaMap, type Decor } from './arena';
@@ -32,6 +33,12 @@ export interface Corridor {
 
 export type ObjectKind = 'chest' | 'shrine' | 'stairs';
 
+export interface TrapTile {
+  kind: TrapKind;
+  tx: number;
+  ty: number;
+}
+
 export interface Dungeon {
   map: ArenaMap;
   rooms: Room[];
@@ -44,6 +51,9 @@ export interface Dungeon {
   seed: number;
   /** Where room objects go. Chests from elite rooms are added at runtime. */
   objects: { kind: ObjectKind; x: number; y: number; roomId: number }[];
+  biome: BiomeId;
+  /** Floor traps (the tiles stay walkable). */
+  traps: TrapTile[];
 }
 
 const DIRS: readonly (readonly [number, number])[] = [
@@ -107,12 +117,29 @@ function buildDungeon(seed: number, depth: number): Dungeon {
     links.push(candidates.splice(rng.int(0, candidates.length - 1), 1)[0]!);
   }
 
+  // the boss lair is the cell farthest from the start; it always gets the biggest room
+  const cellDepth = new Int16Array(cells.length).fill(-1);
+  cellDepth[0] = 0;
+  const cq = [0];
+  while (cq.length) {
+    const i = cq.shift()!;
+    for (const [a, b] of links) {
+      const j = a === i ? b : b === i ? a : -1;
+      if (j >= 0 && cellDepth[j]! < 0) {
+        cellDepth[j] = cellDepth[i]! + 1;
+        cq.push(j);
+      }
+    }
+  }
+  const deepest = Math.max(...cellDepth);
+  const exitCell = rng.pick(cells.map((_, i) => i).filter((i) => cellDepth[i] === deepest && i !== 0));
+
   // 2. rooms: each interior contains its cell's core (rows/cols 6..9) so corridors always line up
   const rooms: Room[] = cells.map((c, id) => {
     const ox = c.gx * C;
     const oy = c.gy * C;
-    const w = rng.int(DUNGEON.roomMin, DUNGEON.roomMax);
-    const h = rng.int(DUNGEON.roomMin, DUNGEON.roomMax);
+    const w = id === exitCell ? DUNGEON.roomMax : rng.int(DUNGEON.roomMin, DUNGEON.roomMax);
+    const h = id === exitCell ? DUNGEON.roomMax : rng.int(DUNGEON.roomMin, DUNGEON.roomMax);
     const x0 = rng.int(Math.max(ox + 2, ox + 10 - w), Math.min(ox + 6, ox + 14 - w));
     const y0 = rng.int(Math.max(oy + 2, oy + 10 - h), Math.min(oy + 6, oy + 14 - h));
     return {
@@ -190,8 +217,7 @@ function buildDungeon(seed: number, depth: number): Dungeon {
     }
   }
   start.type = 'start';
-  const maxDepth = Math.max(...rooms.map((r) => r.depth));
-  const exit = rng.pick(rooms.filter((r) => r.depth === maxDepth && r.id !== start.id));
+  const exit = rooms[exitCell]!;
   exit.type = 'exit';
   const free = () => rooms.filter((r) => r.type === 'combat');
   const leaves = free().filter((r) => r.links.length === 1);
@@ -262,7 +288,33 @@ function buildDungeon(seed: number, depth: number): Dungeon {
     }
   }
 
-  // 6. spawn points: walkable interior tiles off the edge ring, spaced out
+  // 6. traps, by biome, in fighting rooms; never on the edge ring so every door stays safely reachable
+  const biome = biomeFor(depth);
+  const traps: TrapTile[] = [];
+  const trapAt = new Set<number>();
+  for (const r of rooms) {
+    if (r.type !== 'combat' && r.type !== 'elite') continue;
+    for (const [kind, min, max] of biome.traps) {
+      for (let n = rng.int(min, max); n > 0; n--) {
+        const cx = rng.int(r.x0 + 2, r.x1 - 2);
+        const cy = rng.int(r.y0 + 2, r.y1 - 2);
+        const cells: [number, number][] =
+          kind === 'vent' ? [[0, 0]] : kind === 'spikes' ? [[0, 0], [1, 0], [0, 1], [1, 1]] : kind === 'lava' ? [[0, 0], [1, 0], [2, 0], [1, 1], [-1, 1]] : [];
+        if (kind === 'ice') for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) if (ox * ox + oy * oy <= 5 && rng.chance(0.8)) cells.push([ox, oy]);
+        for (const [ox, oy] of cells) {
+          const x = cx + ox;
+          const y = cy + oy;
+          if (x <= r.x0 || x >= r.x1 || y <= r.y0 || y >= r.y1) continue;
+          const idx = y * W + x;
+          if (tiles[idx] !== Tile.Floor || trapAt.has(idx)) continue;
+          trapAt.add(idx);
+          traps.push({ kind, tx: x, ty: y });
+        }
+      }
+    }
+  }
+
+  // 7. spawn points: walkable interior tiles off the edge ring, spaced out
   for (const r of rooms) {
     for (let y = r.y0 + 1; y <= r.y1 - 1; y += 2)
       for (let x = r.x0 + 1; x <= r.x1 - 1; x += 2) if (tiles[y * W + x] === Tile.Floor) r.spawns.push({ x: x + 0.5, y: y + 0.5 });
@@ -276,7 +328,7 @@ function buildDungeon(seed: number, depth: number): Dungeon {
     spawns: rooms.flatMap((r) => r.spawns),
     heroStart: { x: start.cx, y: start.cy },
   };
-  return { map, rooms, corridors, region, startRoom: start.id, exitRoom: exit.id, depth, seed, objects };
+  return { map, rooms, corridors, region, startRoom: start.id, exitRoom: exit.id, depth, seed, objects, biome: biome.id, traps };
 }
 
 /** Returns a list of problems; an empty list means the floor is playable. */
@@ -323,6 +375,9 @@ export function validateDungeon(d: Dungeon): string[] {
     for (const s of r.spawns) if (!reach[Math.floor(s.y) * W + Math.floor(s.x)]) errors.push(`room ${r.id} spawn unreachable`);
   }
   for (const o of d.objects) if (!reach[Math.floor(o.y) * W + Math.floor(o.x)]) errors.push(`${o.kind} spot unreachable`);
+  for (const t of d.traps) if (map.tiles[t.ty * W + t.tx] !== Tile.Floor) errors.push(`trap on a blocked tile ${t.tx},${t.ty}`);
+  const exitRoom = rooms[d.exitRoom];
+  if (exitRoom && exitRoom.x1 - exitRoom.x0 + 1 < DUNGEON.roomMax) errors.push('boss lair is not full size');
   return errors;
 }
 

@@ -23,7 +23,7 @@ interface Timed {
   sy: number;
 }
 
-export type FloaterKind = 'hit' | 'crit' | 'hurt' | 'evade' | 'heal' | 'level';
+export type FloaterKind = 'hit' | 'crit' | 'hurt' | 'evade' | 'heal' | 'level' | 'burn';
 
 /**
  * Pooled combat feedback. Nothing here allocates per frame: floaters, slashes,
@@ -39,6 +39,10 @@ export class Fx {
   private readonly souls: Phaser.GameObjects.Particles.ParticleEmitter;
   private readonly debris: Phaser.GameObjects.Particles.ParticleEmitter;
   private readonly dust: Phaser.GameObjects.Particles.ParticleEmitter;
+  private readonly flames: Phaser.GameObjects.Particles.ParticleEmitter;
+  private readonly frost: Phaser.GameObjects.Particles.ParticleEmitter;
+  private readonly bolts: Phaser.GameObjects.Graphics;
+  private readonly arcs: { pts: number[]; life: number }[] = [];
   private readonly objects: Phaser.GameObjects.GameObject[] = [];
 
   constructor(private readonly scene: Phaser.Scene) {
@@ -110,6 +114,25 @@ export class Fx {
       scale: { start: 0.9, end: 0.3 },
       tint: [PAL.stone4, PAL.stone5, PAL.ash],
     });
+    this.flames = emitter('mote', {
+      speedY: { min: -120, max: -50 },
+      speedX: { min: -25, max: 25 },
+      lifespan: { min: 280, max: 560 },
+      scale: { start: 0.9, end: 0 },
+      alpha: { start: 1, end: 0 },
+      color: [0xffe0a0, 0xff7a2a, 0xc0301a],
+      blendMode: Phaser.BlendModes.ADD,
+    });
+    this.frost = emitter('spark', {
+      speed: { min: 60, max: 200 },
+      lifespan: { min: 260, max: 520 },
+      scale: { start: 0.8, end: 0 },
+      color: [0xffffff, 0xbfe6ff, 0x6fb8ff],
+      blendMode: Phaser.BlendModes.ADD,
+      rotate: { min: 0, max: 360 },
+    });
+    this.bolts = scene.add.graphics().setDepth(LAYER.fx + 1).setBlendMode(Phaser.BlendModes.ADD);
+    this.objects.push(this.bolts);
     this.dust = emitter('mote', {
       speed: { min: 10, max: 45 },
       lifespan: { min: 280, max: 520 },
@@ -121,8 +144,8 @@ export class Fx {
 
   floater(x: number, y: number, label: string, kind: FloaterKind): void {
     const f = this.floaters.find((o) => o.life <= 0) ?? this.floaters[0]!;
-    const color = { crit: '#ffb85c', hurt: '#ff6457', evade: '#9df0e6', heal: '#f2d27a', level: '#ffd98a', hit: '#f3ead6' }[kind];
-    const size = kind === 'crit' ? 28 : kind === 'level' ? 24 : kind === 'evade' ? 16 : 20;
+    const color = { crit: '#ffb85c', hurt: '#ff6457', evade: '#9df0e6', heal: '#f2d27a', level: '#ffd98a', hit: '#f3ead6', burn: '#ff9a4a' }[kind];
+    const size = kind === 'crit' ? 28 : kind === 'level' ? 24 : kind === 'evade' || kind === 'burn' ? 16 : 20;
     f.text
       .setText(label)
       .setColor(color)
@@ -190,11 +213,48 @@ export class Fx {
     this.debris.explode(n, x, y);
   }
 
+  flamesAt(x: number, y: number, n: number): void {
+    this.flames.explode(n, x, y);
+  }
+
+  frostAt(x: number, y: number, n: number): void {
+    this.frost.explode(n, x, y);
+  }
+
+  /** A jagged lightning arc between screen points (each pair = one segment). */
+  lightning(segments: [number, number, number, number][]): void {
+    for (const [x0, y0, x1, y1] of segments) {
+      const pts = [x0, y0];
+      for (let i = 1; i < 6; i++) {
+        const t = i / 6;
+        pts.push(x0 + (x1 - x0) * t + (Math.random() - 0.5) * 12, y0 + (y1 - y0) * t + (Math.random() - 0.5) * 10);
+      }
+      pts.push(x1, y1);
+      this.arcs.push({ pts, life: 0.18 });
+    }
+  }
+
   dustAt(x: number, y: number, n: number): void {
     this.dust.explode(n, x, y);
   }
 
   update(dt: number): void {
+    this.bolts.clear();
+    for (let i = this.arcs.length - 1; i >= 0; i--) {
+      const a = this.arcs[i]!;
+      a.life -= dt;
+      if (a.life <= 0) {
+        this.arcs.splice(i, 1);
+        continue;
+      }
+      for (const [w, c, al] of [[6, 0x6fb8ff, 0.35], [2.2, 0xffffff, 1]] as const) {
+        this.bolts.lineStyle(w, c, al * (a.life / 0.18));
+        this.bolts.beginPath();
+        this.bolts.moveTo(a.pts[0]!, a.pts[1]!);
+        for (let k = 2; k < a.pts.length; k += 2) this.bolts.lineTo(a.pts[k]!, a.pts[k + 1]!);
+        this.bolts.strokePath();
+      }
+    }
     for (const f of this.floaters) {
       if (f.life <= 0) continue;
       f.life -= dt;

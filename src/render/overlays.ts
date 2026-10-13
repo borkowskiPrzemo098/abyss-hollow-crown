@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import { blocksSight, tileAt, type ArenaMap } from '../world/arena';
 import { worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Simulation } from '../sim/simulation';
+import type { StrikeShape } from '../config/balance';
 import type { Enemy } from '../sim/types';
 import { PAL } from './palette';
 import { RES } from './textures';
@@ -10,7 +11,7 @@ import { LAYER } from './worldView';
 const DEG = Math.PI / 180;
 
 interface StrikeFlash {
-  enemy: Enemy;
+  shape: StrikeShape;
   aim: number;
   x: number;
   y: number;
@@ -46,7 +47,7 @@ export class Overlays {
   }
 
   onStrike(e: Enemy): void {
-    this.flashes.push({ enemy: e, aim: e.aim, x: e.x, y: e.y, life: 0.16 });
+    this.flashes.push({ shape: e.atk.shape, aim: e.aim, x: e.x, y: e.y, life: 0.16 });
   }
 
   draw(sim: Simulation, views: ReadonlyMap<number, ViewPos>, dt: number, time: number): void {
@@ -68,13 +69,22 @@ export class Overlays {
       }
     }
 
+    // delayed blasts: the fill reaches the rim exactly when it goes off
+    for (const z of sim.hazards) {
+      const p = Math.min(1, z.t / z.delay);
+      const icy = z.kind === 'frost';
+      this.circle(g, z.x, z.y, z.r, PAL.danger, 0.1, 0.7);
+      this.circle(g, z.x, z.y, z.r * Math.max(0.05, p), icy ? 0x9fd8ff : PAL.danger, 0.22 + p * 0.15, 0);
+      if (p > 0.8) this.circle(g, z.x, z.y, z.r, 0xffd2c8, 0, 0.9);
+    }
+
     for (const e of sim.enemies) {
       if (e.state === 'windup') {
         const p = 1 - Math.max(0, e.stateT) / e.stateDur;
-        this.drawShape(g, e, e.x, e.y, e.aim, 1, PAL.danger, 0.13, 0.75);
+        this.drawShape(g, e.atk.shape, e.x, e.y, e.aim, 1, PAL.danger, 0.13, 0.75);
         // the inner fill grows to the edge exactly when the hit lands
-        this.drawShape(g, e, e.x, e.y, e.aim, p, PAL.danger, 0.24 + p * 0.12, 0);
-        if (p > 0.82) this.drawShape(g, e, e.x, e.y, e.aim, 1, 0xffd2c8, 0, 0.9);
+        this.drawShape(g, e.atk.shape, e.x, e.y, e.aim, p, PAL.danger, 0.24 + p * 0.12, 0);
+        if (p > 0.82) this.drawShape(g, e.atk.shape, e.x, e.y, e.aim, 1, 0xffd2c8, 0, 0.9);
       } else if (e.state === 'spawning') {
         const p = 1 - Math.max(0, e.stateT) / e.stateDur;
         this.circle(g, e.x, e.y, 0.55 + 0.25 * p, PAL.hollow, 0.08 + 0.12 * p, 0.6);
@@ -88,7 +98,7 @@ export class Overlays {
         this.flashes.splice(i, 1);
         continue;
       }
-      this.drawShape(g, f.enemy, f.x, f.y, f.aim, 1, 0xffe6dc, (f.life / 0.16) * 0.45, 0);
+      this.drawShape(g, f.shape, f.x, f.y, f.aim, 1, 0xffe6dc, (f.life / 0.16) * 0.45, 0);
     }
 
     // target marker
@@ -115,7 +125,7 @@ export class Overlays {
     // enemy health and stun marks
     for (const e of sim.enemies) {
       const v = views.get(e.id);
-      if (!v || e.state === 'dead' || e.state === 'spawning') continue;
+      if (!v || e.state === 'dead' || e.state === 'spawning' || e.def.boss) continue;
       const show = e.hp < e.maxHp || e.kind === 'brute';
       const bx = v.sx;
       const by = v.sy + v.headY;
@@ -147,7 +157,7 @@ export class Overlays {
 
   private drawShape(
     g: Phaser.GameObjects.Graphics,
-    e: Enemy,
+    shape: StrikeShape,
     x: number,
     y: number,
     aim: number,
@@ -156,7 +166,20 @@ export class Overlays {
     fillA: number,
     lineA: number,
   ): void {
-    const shape = e.def.attack.shape;
+    if (shape.kind === 'meteors' || shape.kind === 'lob' || shape.kind === 'summon') return; // their own circles / sigils are the telegraph
+    if (shape.kind === 'radial') {
+      // rays showing every direction a shard will fly
+      const len = 0.6 + 1.6 * Math.max(0.02, scale);
+      for (let i = 0; i < shape.bolts; i++) {
+        const a = aim + (i / shape.bolts) * Math.PI * 2;
+        g.lineStyle(3, color, Math.max(lineA, fillA * 2));
+        g.beginPath();
+        g.moveTo(worldToScreenX(x + Math.cos(a) * 0.6, y + Math.sin(a) * 0.6), worldToScreenY(x + Math.cos(a) * 0.6, y + Math.sin(a) * 0.6));
+        g.lineTo(worldToScreenX(x + Math.cos(a) * len, y + Math.sin(a) * len), worldToScreenY(x + Math.cos(a) * len, y + Math.sin(a) * len));
+        g.strokePath();
+      }
+      return;
+    }
     if (shape.kind === 'cone') {
       const half = (shape.arcDeg / 2) * DEG;
       const r = shape.radius * Math.max(0.02, scale);
@@ -172,10 +195,11 @@ export class Overlays {
         pts[i + 1]!.y = worldToScreenY(wx, wy);
       }
       this.polygon(g, n + 2, color, fillA, lineA);
-    } else if (shape.kind === 'bolt') {
-      // the ember's path, cut off where it will hit a wall
-      const len = this.traceLength(x, y, aim, shape.range) * Math.max(0.02, scale);
-      const w = shape.radius + 0.12;
+    } else if (shape.kind === 'bolt' || shape.kind === 'charge') {
+      // the ember's path / the charge lane, cut off where it will hit a wall
+      const reach = shape.kind === 'bolt' ? shape.range : shape.distance;
+      const len = this.traceLength(x, y, aim, reach) * Math.max(0.02, scale);
+      const w = shape.kind === 'bolt' ? shape.radius + 0.12 : shape.width;
       const nx = -Math.sin(aim) * w;
       const ny = Math.cos(aim) * w;
       const ex = x + Math.cos(aim) * len;

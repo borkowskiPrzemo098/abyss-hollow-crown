@@ -71,3 +71,15 @@ nierówną prędkość. Zamrożenie zostało tylko dla krytyków (40 ms) i umiej
 ## D16 — Obiekt pod stopami uzbraja się po zejściu z niego
 Schody/skrzynia pojawiające się dokładnie tam, gdzie stoi bohater, działały natychmiast (np. przeniesienie
 na kolejne piętro bez zebrania łupu). Teraz trzeba zejść i wejść ponownie.
+
+## D17 — Joystick: prędkość nie zależy od odległości palca poza obwodem (2026-10-13)
+Błąd: wychylenie było przycinane do promienia, ale dzielone przez pełną odległość palca, więc prędkość spadała jak 1/odległość. Matematyka wydzielona do `src/input/stick.ts` (testy), baza joysticka podąża za palcem.
+
+## D18 — Ekwipunek zostaje między wyprawami
+Wzorem mobilnych auto-attack roguelite (np. Archero): przedmioty są trwałe (zapis v2, IndexedDB), ulepszenia 1 z 3 — tylko na wyprawę. Śmierć kosztuje postęp wyprawy i 40% popiołu, ale nie zabiera łupu. Torba 30 miejsc; nadmiar rozbijany na popiół. Bilans pięter liczony botami BEZ ekwipunku — sprzęt jest progresją, która pozwala schodzić głębiej.
+
+## D19 — Legendarne = ręcznie zaprojektowane unikaty
+Zwykłe/rzadkie/epickie mają losowane statystyki; 12 legendarnych ma stałą nazwę i efekt zmieniający grę. Efekt tego samego typu się nie kumuluje (liczy się najlepszy).
+
+## D20 — Boss zamiast fal w ostatniej komnacie; 3 biomy
+Komnata bossa jest zawsze największa (12×12). Każde piętro ma własny biom (wygląd, wrogowie, pułapki, boss) — `src/config/biomes.ts`. Bossowie to dane (listy ataków na 2 fazy), nie osobny kod — kolejnych dodaje się w konfiguracji.

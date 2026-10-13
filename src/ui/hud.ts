@@ -66,6 +66,7 @@ class CooldownButton {
 export class Hud {
   onPause: () => void = () => {};
   onHero: () => void = () => {};
+  onBag: () => void = () => {};
 
   private readonly hud = $('#hud');
   private readonly hpFill = $('#hp-fill');
@@ -86,6 +87,14 @@ export class Hud {
   private readonly skillBtn = $('#btn-skill');
   private readonly dodge = new CooldownButton($('#btn-dodge'), $('#dodge-cd'));
   private readonly skill = new CooldownButton($('#btn-skill'), $('#skill-cd'));
+  private readonly bossBar = $('#boss-bar');
+  private readonly bossName = $('#boss-name');
+  private readonly bossTitle = $('#boss-title');
+  private readonly bossFill = $('#boss-fill');
+  private readonly toastBox = $('#toast');
+  private readonly chips = $('#fx-chips');
+  private lastBoss = -1;
+  private lastChips = '';
   private readonly last = { hp: -1, max: -1, xp: -1, lvl: -1, ash: -1 };
   private ghostHp = 0;
   private bannerTimer = 0;
@@ -93,6 +102,7 @@ export class Hud {
   constructor() {
     $('#btn-pause').addEventListener('click', () => this.onPause());
     $('#btn-hero').addEventListener('click', () => this.onHero());
+    $('#btn-bag').addEventListener('click', () => this.onBag());
     const touch = window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
     document.documentElement.classList.toggle('is-touch', touch);
   }
@@ -117,6 +127,50 @@ export class Hud {
     void this.banner.offsetWidth;
     this.banner.classList.add('is-on');
     this.bannerTimer = seconds;
+  }
+
+  /** Boss health bar across the top; pass null to hide it. */
+  setBoss(boss: { name: string; title: string; hp: number; maxHp: number; phase: number } | null): void {
+    if (!boss) {
+      if (!this.bossBar.hidden) this.bossBar.hidden = true;
+      this.lastBoss = -1;
+      return;
+    }
+    if (this.bossBar.hidden) {
+      this.bossBar.hidden = false;
+      this.bossName.textContent = boss.name;
+      this.bossTitle.textContent = boss.title;
+    }
+    const frac = Math.max(0, boss.hp / boss.maxHp);
+    if (Math.abs(frac - this.lastBoss) > 0.002) {
+      this.bossFill.style.transform = `scaleX(${frac})`;
+      this.lastBoss = frac;
+    }
+    this.bossBar.classList.toggle('is-enraged', boss.phase === 2);
+  }
+
+  /** Short message under the HUD (loot found, bag full…). Several queue up. */
+  toast(html: string, color = 'var(--bone)'): void {
+    const el = document.createElement('p');
+    el.className = 'toast-item';
+    el.style.setProperty('--c', color);
+    el.innerHTML = html;
+    this.toastBox.appendChild(el);
+    while (this.toastBox.children.length > 3) this.toastBox.firstElementChild?.remove();
+    setTimeout(() => el.remove(), 3200);
+  }
+
+  /** Gear effect chips: Frost Shell cooldown, barrier amount, frenzy. */
+  setEffects(chips: { id: string; label: string; cd: number; active: boolean }[]): void {
+    const key = chips.map((c) => `${c.id}:${c.label}:${Math.round(c.cd * 20)}:${c.active}`).join('|');
+    if (key === this.lastChips) return;
+    this.lastChips = key;
+    this.chips.innerHTML = chips
+      .map(
+        (c) =>
+          `<span class="chip ${c.active ? 'is-on' : ''}" style="--cd:${c.cd}"><svg aria-hidden="true"><use href="#fx-${c.id}" /></svg>${c.label ? `<b>${c.label}</b>` : ''}</span>`,
+      )
+      .join('');
   }
 
   clearBanner(): void {

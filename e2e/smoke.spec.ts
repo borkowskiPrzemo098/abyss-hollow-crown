@@ -105,7 +105,7 @@ test('full run: pick hero, explore, fight, level up, descend, die, sanctuary', a
   for (let i = 0; i < 10; i++) {
     const active = await game<boolean>(page, `s.director.states[${roomId}] === 'active'`);
     if (!active) break;
-    await game(page, `(s.sim.hero.hp = s.sim.hero.stats.maxHp, s.sim.enemies.forEach((e) => { if (e.state !== 'spawning' && e.state !== 'dead') { e.hp = 1; } }))`);
+    await game(page, `(s.sim.hero.hp = s.sim.hero.stats.maxHp, s.sim.enemies.forEach((e) => { if (e.state !== 'spawning' && e.state !== 'dead') s.sim.damageEnemy(e, { amount: 99999, crit: false }, 'attack', 0, 0); }))`);
     await page.waitForTimeout(1200);
     // close any level-up choice that popped up meanwhile
     if (await page.locator('#screen-choice').isVisible()) await page.locator('#choice-cards .card').first().click();
@@ -132,8 +132,29 @@ test('full run: pick hero, explore, fight, level up, descend, die, sanctuary', a
   await page.locator('#btn-resume').click();
   await expect(page.locator('#screen-pause')).toBeHidden();
 
+  // the boss lair: the boss rises, its health bar shows; beating it opens the stairs
+  await enterRoom(page, 'exit');
+  await expect(page.locator('#boss-bar')).toBeVisible({ timeout: 6000 });
+  await expect(page.locator('#boss-name')).toHaveText('Strażnik Krypt');
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: info.outputPath('07b-boss.png') });
+  await game(page, `(() => { const b = s.sim.getEnemy(s.director.bossId); s.sim.hero.hp = 1e6; b.phase = 2; b.invulnerable = false; b.hp = 1; s.sim.damageEnemy(b, { amount: 5, crit: false }, 'attack', 0, 0); })()`);
+  await page.waitForFunction(() => {
+    const s = (window as unknown as { __abyss: { scene: { sim: { objects: { kind: string; active: boolean }[] } } } }).__abyss.scene.sim;
+    return s.objects.some((o) => o.kind === 'stairs' && o.active);
+  });
+  await expect(page.locator('#boss-bar')).toBeHidden();
+  if (await page.locator('#screen-choice').isVisible()) while (await page.locator('#screen-choice').isVisible()) await page.locator('#choice-cards .card').first().click();
+  // boss loot lands in the inventory once walked over
+  await game(page, `(() => { for (const p of s.sim.pickups) { p.x = s.sim.hero.x; p.y = s.sim.hero.y; p.age = 1; } })()`);
+  await page.waitForTimeout(400);
+  expect(await game<number>(page, 'w.save.data.inventory.items.length')).toBeGreaterThanOrEqual(2);
+  await page.screenshot({ path: info.outputPath('07c-loot.png') });
+
   // stairs → floor 2
-  await game(page, `(() => { const o = s.sim.objects.find((x) => x.kind === 'stairs'); o.active = true; s.sim.hero.x = o.x; s.sim.hero.y = o.y; })()`);
+  await game(page, `(() => { const o = s.sim.objects.find((x) => x.kind === 'stairs'); s.sim.hero.x = o.x + 2; s.sim.hero.y = o.y; })()`);
+  await page.waitForTimeout(150);
+  await game(page, `(() => { const o = s.sim.objects.find((x) => x.kind === 'stairs'); s.sim.hero.x = o.x; s.sim.hero.y = o.y; })()`);
   await page.waitForFunction(() => (window as unknown as { __abyss: { scene: { run?: { depth: number } } } }).__abyss.scene.run?.depth === 2, null, {
     timeout: 5000,
   });
@@ -159,6 +180,49 @@ test('full run: pick hero, explore, fight, level up, descend, die, sanctuary', a
   await expect(page.locator('#title-ash')).toHaveText('15');
   expect(await game<number>(page, 'w.save.data.ranks.vitality')).toBe(1);
 
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('inventory: found gear is worn, compared and changes the stats', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  await startRun(page, 'warden', 'sunder');
+  // drop a legendary sword at the hero's feet
+  await game(page, `(() => { const h = s.sim.hero; let it; for (let i = 0; i < 400 && !(it && it.unique === 'kiel'); i++) { s.sim.pickups = []; it = s.sim.dropItem('boss', h.x, h.y); } for (const p of s.sim.pickups) { p.age = 1; } })()`);
+  await page.waitForTimeout(500);
+  await expect(page.locator('#toast')).toContainText('Żarzący Kieł');
+  expect(await game<number>(page, 's.sim.hero.stats.burn')).toBeGreaterThan(0);
+  // a second, worse sword goes to the bag; the inventory compares them
+  await game(page, `(() => { const h = s.sim.hero; s.sim.pickups = []; let it; do { s.sim.pickups = []; it = s.sim.dropItem('enemy', h.x, h.y); } while (it.base !== 'sword' && it.base !== 'axe' && it.base !== 'mace'); for (const p of s.sim.pickups) p.age = 1; })()`);
+  await page.waitForTimeout(400);
+  await page.locator('#btn-bag').click();
+  await expect(page.locator('#screen-inv')).toBeVisible();
+  await expect(page.locator('#inv-slots .slot').first()).toContainText('Żarzący Kieł');
+  await page.locator('#inv-bag .tile').first().click();
+  await expect(page.locator('#inv-detail')).toContainText(/Zamień|Załóż/);
+  await page.screenshot({ path: info.outputPath('inventory.png') });
+  const dmgBefore = await game<number>(page, 's.sim.hero.stats.damage');
+  await page.locator('#inv-detail [data-act="equip"]').click();
+  expect(await game<number>(page, 's.sim.hero.stats.damage')).not.toBe(dmgBefore);
+  await page.locator('#screen-inv [data-back]').click();
+  await expect(page.locator('#screen-inv')).toBeHidden();
+  expect(await game<string>(page, 's.mode')).toBe('playing');
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('deeper floors look different and bring new enemies', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  await startRun(page, 'wanderer', 'seal');
+  for (const depth of [2, 3]) {
+    await game(page, `(() => { const o = s.sim.objects.find((x) => x.kind === 'stairs'); o.active = true; s.sim.hero.x = o.x; s.sim.hero.y = o.y; })()`);
+    await page.waitForFunction((d) => (window as unknown as { __abyss: { scene: { run?: { depth: number }; mode: string } } }).__abyss.scene.run?.depth === d && (window as unknown as { __abyss: { scene: { mode: string } } }).__abyss.scene.mode === 'playing', depth, { timeout: 6000 });
+    expect(await game<string>(page, 's.dungeon.biome')).toBe(depth === 2 ? 'frost' : 'forge');
+    await enterRoom(page, 'combat');
+    await page.waitForTimeout(2200);
+    await page.screenshot({ path: info.outputPath(`floor${depth}.png`) });
+    await game(page, 's.sim.hero.hp = s.sim.hero.stats.maxHp');
+  }
   expect(errors, errors.join('\n')).toEqual([]);
 });
 

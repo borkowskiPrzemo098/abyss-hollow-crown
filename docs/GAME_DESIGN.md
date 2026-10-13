@@ -69,6 +69,19 @@ Po ciosie faza odpoczynku = okno kontry. Z każdym piętrem: +30% HP, +15% obra�
 - brak zamrożeń przy zwykłych trafieniach (hit-stop tylko przy krytykach i umiejętnościach),
 - kamera wygładzana niezależnie od liczby klatek.
 
+## Ekwipunek (v0.3)
+5 slotów: broń (Strażnik: miecz/topór/buzdygan; Wędrowiec: laska/różdżka/kostur), hełm, zbroja, amulet, pierścień.
+Rzadkości: zwykły (1 cecha), rzadki (2), epicki (3), legendarny (3 + unikalny efekt). Liczby rosną z poziomem przedmiotu
+(= piętro, na którym wypadł). Przedmioty zostają między wyprawami; nadmiar rozbijasz na popiół. Szczegóły i wartości: .
+
+## Poziomy podziemi (v0.3)
+| Piętro | Biom | Nowi wrogowie | Pułapki | Boss |
+|---|---|---|---|---|
+| 1 | Krypty Popiołu | — | kolce (cykl 3,2 s, ostrzeżenie czerwienią) | Strażnik Krypt: zamach, uderzenie, szarża; faza 2: pierścień ognia, wezwanie umarłych |
+| 2 | Lodowe Groby | Ogar Szronu (szarża po zaznaczonym pasie) | lód (ślizganie) | Królowa Szronu: pierścienie odłamków, spadający lód, ogary; faza 2: gęściej + mroźny oddech |
+| 3 | Kuźnie Otchłani | Ogniomistrz (bomba na twoją pozycję) | lawa, kraty ognia | Pusty Król: ostrze, deszcz ognia, szarża; faza 2: pierścień, więcej meteorów, przywołania |
+Pułapki ranią także wrogów. Boss w połowie zdrowia ryczy (chwilowo odporny) i przechodzi w drugą fazę.
+
 ## Jeszcze nie ma (kolejne etapy)
-Boss z 2 fazami, wrogowie szarżujący i wspierający, przedmioty i relikty, talenty, Kuźnia i Archiwum
-w bazie, samouczek, finalna grafika i muzyka.
+Relikty, ulepszanie przedmiotów, wrogowie wspierający, talenty, Kuźnia i Archiwum w bazie, samouczek,
+finalna grafika i muzyka.

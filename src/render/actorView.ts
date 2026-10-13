@@ -239,6 +239,11 @@ const RIGS: Record<Enemy['kind'], EnemyRigSpec> = {
     weapon: { key: 'maul', ox: 4 / 46, x: 18, y: -40 },
   },
   acolyte: { body: 'acolyteBody', leg: null, bodyY: -2, legY: 0, legX: [0, 0], shadow: 0.55, headY: -54 },
+  hound: { body: 'houndBody', leg: null, bodyY: 0, legY: 0, legX: [0, 0], shadow: 0.75, headY: -38 },
+  pyre: { body: 'pyreBody', leg: null, bodyY: -2, legY: 0, legX: [0, 0], shadow: 0.55, headY: -54 },
+  bossCrypt: { body: 'bossCryptBody', leg: 'bruteLeg', bodyY: -9, legY: -17, legX: [-9, 6], shadow: 1.05, headY: -80, weapon: { key: 'maul', ox: 4 / 46, x: 18, y: -40 } },
+  bossFrost: { body: 'bossFrostBody', leg: null, bodyY: -2, legY: 0, legX: [0, 0], shadow: 0.6, headY: -62 },
+  bossKing: { body: 'bossKingBody', leg: 'heroLeg', bodyY: -6, legY: -16, legX: [-6, 5], shadow: 0.7, headY: -68, weapon: { key: 'kingBlade', ox: 6 / 60, x: 11, y: -28 } },
 };
 
 export class EnemyView {
@@ -258,10 +263,13 @@ export class EnemyView {
   sy = 0;
   headY: number;
 
-  constructor(scene: Phaser.Scene, e: Enemy) {
+  private readonly scale: number;
+
+  constructor(scene: Phaser.Scene, e: Enemy, private readonly biomeTint = 0xffffff) {
     this.spec = RIGS[e.kind];
     const sp = this.spec;
-    const shadow = scene.add.image(0, 0, 'shadow').setScale(S * sp.shadow);
+    this.scale = e.def.scale ?? 1;
+    const shadow = scene.add.image(0, 0, 'shadow').setScale(S * sp.shadow * this.scale);
     this.legL = scene.add.image(sp.legX[0], sp.legY, sp.leg ?? 'thrallLeg').setScale(S).setOrigin(0.5, 0).setVisible(!!sp.leg);
     this.legR = scene.add.image(sp.legX[1], sp.legY, sp.leg ?? 'thrallLeg').setScale(S).setOrigin(0.5, 0).setVisible(!!sp.leg);
     this.body = scene.add.image(0, sp.bodyY, sp.body).setScale(S).setOrigin(0.5, 1);
@@ -272,7 +280,7 @@ export class EnemyView {
     if (this.weapon) parts.push(this.weapon);
     this.rig = scene.add.container(0, 0, parts);
     this.root = scene.add.container(0, 0, [shadow, this.rig]);
-    this.headY = sp.headY;
+    this.headY = sp.headY * this.scale;
     this.lastX = e.x;
     this.lastY = e.y;
   }
@@ -291,7 +299,7 @@ export class EnemyView {
 
     const fa = worldDirToScreenAngle(Math.cos(e.facing), Math.sin(e.facing));
     this.flipped = updateFlip(this.flipped, fa);
-    this.rig.setScale(this.flipped ? -1 : 1, 1);
+    this.rig.setScale((this.flipped ? -1 : 1) * this.scale, this.scale);
 
     const sp = this.spec;
     let bodyY = sp.bodyY;
@@ -352,12 +360,22 @@ export class EnemyView {
       }
     }
 
+    if (e.frozenT > 0) {
+      tint = 0x9fd8ff;
+      rot = 0;
+      bodyX = 0;
+    } else if (e.burnT > 0 && tint === null) {
+      tint = Math.floor(time * 10 + e.id) % 2 ? 0xffb07a : 0xff8a5a;
+    }
+    if (e.invulnerable) tint = Math.floor(time * 14) % 2 ? 0xffffff : 0xffe2a0;
     this.flashT = Math.max(0, this.flashT - dt);
     if (this.flashT > 0) {
       tintFill(this.body, 0xffffff);
     } else if (tint !== null) {
       if (fill) tintFill(this.body, tint);
       else tintMul(this.body, tint);
+    } else if (this.biomeTint !== 0xffffff) {
+      tintMul(this.body, this.biomeTint);
     } else {
       this.body.clearTint();
     }

@@ -4,7 +4,7 @@
  * - Same-origin static files (hashed JS/CSS/fonts, icons): cache first, filled on first use.
  * Bump VERSION on every deploy that changes the shell so old caches are dropped.
  */
-const VERSION = 'abyss-v0.2.0';
+const VERSION = 'abyss-v0.3.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {

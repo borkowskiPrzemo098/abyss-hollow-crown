@@ -21,7 +21,7 @@ export function openRoom(extraRows?: Record<number, string>) {
 }
 
 export function build(heroId: HeroId = 'warden', skillId?: SkillId): HeroBuild {
-  return { heroId, skillId: skillId ?? (heroId === 'warden' ? 'sunder' : 'volley'), ranks: { ...NO_RANKS } };
+  return { heroId, skillId: skillId ?? (heroId === 'warden' ? 'sunder' : 'volley'), ranks: { ...NO_RANKS }, gear: [] };
 }
 
 /** A sandbox simulation; armour is zeroed by default so damage numbers are exact. */

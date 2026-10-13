@@ -4,7 +4,7 @@ Mroczny izometryczny dungeon crawler na telefon (PWA). Bohater atakuje sam — t
 gdzie stoi, kiedy się przeturla i kiedy użyje umiejętności. Trzy piętra proceduralnych podziemi,
 dwie klasy, ulepszenia z każdej wyprawy i stałe rangi w Sanktuarium.
 
-**Status: dungeon crawler — 3 piętra, 2 klasy, 4 umiejętności, 15 ulepszeń, zapis postępów.** Szczegóły: [docs/ROADMAP.md](docs/ROADMAP.md).
+**Status v0.3: 3 biomy z bossami, ekwipunek z legendarnymi efektami, 2 klasy, 4 umiejętności, zapis postępów.** Szczegóły: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Uruchomienie lokalne
 
@@ -31,6 +31,7 @@ z HTTPS lub localhost — do tego użyj wersji z GitHub Pages.)
 | Unik | duży przycisk po prawej | Spacja / Shift |
 | Umiejętność | mniejszy przycisk nad unikiem | E / Q |
 | Postać i statystyki | ikona postaci u góry | C |
+| Ekwipunek | ikona torby u góry | — |
 | Pauza | przycisk w prawym górnym rogu | Esc / P |
 | Atak | **automatyczny** | **automatyczny** |
 

@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { Rng } from '../core/rng';
+import { BIOMES } from '../config/biomes';
 import { PAL, css } from './palette';
 
 /**
@@ -195,7 +196,7 @@ function block(ctx: Ctx, rng: Rng, h: number, top: number, left: number, right: 
   ctx.stroke();
 }
 
-function sigil(ctx: Ctx): void {
+function sigil(ctx: Ctx, color: number): void {
   // A ritual circle laid into the floor, projected 2:1. 6 tiles across.
   const cx = 192;
   const cy = 96;
@@ -203,7 +204,7 @@ function sigil(ctx: Ctx): void {
   ctx.translate(cx, cy);
   ctx.scale(1, 0.5);
   const ring = (r: number, w: number, a: number) => {
-    ctx.strokeStyle = css(PAL.ember, a);
+    ctx.strokeStyle = css(color, a);
     ctx.lineWidth = w;
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -216,7 +217,7 @@ function sigil(ctx: Ctx): void {
   for (let i = 0; i < 36; i++) {
     const a = (i / 36) * Math.PI * 2;
     const long = i % 3 === 0;
-    ctx.strokeStyle = css(PAL.ember, long ? 0.24 : 0.14);
+    ctx.strokeStyle = css(color, long ? 0.24 : 0.14);
     ctx.lineWidth = long ? 2 : 1.2;
     ctx.beginPath();
     ctx.moveTo(Math.cos(a) * 174, Math.sin(a) * 174);
@@ -224,7 +225,7 @@ function sigil(ctx: Ctx): void {
     ctx.stroke();
   }
   // crown: five points around the inner ring
-  ctx.strokeStyle = css(PAL.ember, 0.2);
+  ctx.strokeStyle = css(color, 0.2);
   ctx.lineWidth = 2.4;
   ctx.beginPath();
   for (let i = 0; i <= 10; i++) {
@@ -808,6 +809,312 @@ function gate(ctx: Ctx, slope: number): void {
   ctx.restore();
 }
 
+function houndBody(ctx: Ctx): void {
+  // 46 x 32 frost hound, facing right, paws on y=32.
+  const fur = 0x8ea4bc;
+  ctx.strokeStyle = css(shade(fur, 0.55));
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  for (const [x, lift] of [[11, 0], [17, 1], [30, 1], [36, 0]] as const) {
+    ctx.beginPath();
+    ctx.moveTo(x, 19);
+    ctx.lineTo(x + 1, 31 - lift);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.ellipse(23, 17, 15, 7.5, -0.05, 0, Math.PI * 2);
+  const g = ctx.createLinearGradient(0, 9, 0, 25);
+  g.addColorStop(0, css(shade(fur, 1.15)));
+  g.addColorStop(1, css(shade(fur, 0.5)));
+  ctx.fillStyle = g;
+  ctx.fill();
+  // icy spines along the back
+  ctx.fillStyle = css(0xe6f6ff);
+  for (let i = 0; i < 5; i++) poly(ctx, [12 + i * 5, 11, 14 + i * 5, 4 + (i % 2) * 2, 16 + i * 5, 11]), ctx.fill();
+  // head and snout
+  ctx.beginPath();
+  ctx.ellipse(38, 13, 6.5, 5, 0.2, 0, Math.PI * 2);
+  ctx.fillStyle = css(shade(fur, 0.95));
+  ctx.fill();
+  poly(ctx, [41, 12, 46, 15, 41, 18]);
+  ctx.fillStyle = css(shade(fur, 0.7));
+  ctx.fill();
+  poly(ctx, [34, 9, 35, 3, 38, 8]);
+  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = css(PAL.hollow);
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = css(PAL.hollow);
+  ctx.fillRect(39, 11, 2, 1.6);
+  ctx.restore();
+  // tail
+  ctx.strokeStyle = css(shade(fur, 0.8));
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(9, 15);
+  ctx.quadraticCurveTo(2, 10, 4, 4);
+  ctx.stroke();
+}
+
+function pyreBody(ctx: Ctx): void {
+  // 36 x 46 fire cultist with a brazier strapped to the back. Feet line y=46.
+  poly(ctx, [9, 16, 25, 16, 31, 46, 3, 46]);
+  const rg = ctx.createLinearGradient(0, 16, 0, 46);
+  rg.addColorStop(0, css(0x4a2018));
+  rg.addColorStop(1, css(0x1c0d0a));
+  ctx.fillStyle = rg;
+  ctx.fill();
+  // back brazier
+  ctx.beginPath();
+  ctx.ellipse(8, 14, 7, 3.4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = css(0x3a3332);
+  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = css(0xff7a2a);
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.ellipse(8, 12.5, 5.5, 2.4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = radial(ctx, 8, 12.5, 5.5, [[0, css(0xffe0a0)], [0.6, css(0xff7a2a)], [1, css(0xc0301a)]]);
+  ctx.fill();
+  ctx.restore();
+  // hood with an iron mask
+  ctx.beginPath();
+  ctx.moveTo(13, 17);
+  ctx.quadraticCurveTo(12, 2, 21, 3);
+  ctx.quadraticCurveTo(29, 4, 27, 17);
+  ctx.closePath();
+  ctx.fillStyle = css(0x2a1410);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(19, 7, 7, 7, 2);
+  ctx.fillStyle = css(0x55504e);
+  ctx.fill();
+  ctx.fillStyle = css(0xff9a4a);
+  ctx.fillRect(21, 9.5, 4, 1.4);
+  // hand with a bomb
+  ctx.strokeStyle = css(0x4a2018);
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(24, 20);
+  ctx.lineTo(31, 22);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(32.5, 22, 3, 0, Math.PI * 2);
+  ctx.fillStyle = css(0x2a2626);
+  ctx.fill();
+  ctx.fillStyle = css(0xffc073);
+  ctx.fillRect(32, 17.5, 1.2, 2.2);
+}
+
+function bossCryptBody(ctx: Ctx): void {
+  // the brute silhouette in darker crypt armour, with horns and gold trim (60 x 66, feet y=66)
+  ctx.save();
+  ctx.translate(0, 4);
+  bruteBody(ctx);
+  ctx.restore();
+  ctx.save();
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.fillStyle = 'rgba(20,22,30,0.35)';
+  ctx.fillRect(0, 0, 60, 66);
+  ctx.restore();
+  ctx.strokeStyle = css(PAL.gold);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.roundRect(18, 24, 24, 20, 4);
+  ctx.stroke();
+  // horns
+  ctx.fillStyle = css(0xd8d0bd);
+  poly(ctx, [24, 10, 16, 0, 20, 11]);
+  ctx.fill();
+  poly(ctx, [38, 10, 46, 0, 42, 11]);
+  ctx.fill();
+}
+
+function bossFrostBody(ctx: Ctx): void {
+  // 36 x 54 frost queen: long robe, ice crown, pale glowing eyes. Feet line y=54.
+  poly(ctx, [11, 20, 25, 20, 33, 54, 3, 54]);
+  const rg = ctx.createLinearGradient(0, 20, 0, 54);
+  rg.addColorStop(0, css(0x9cc8ef));
+  rg.addColorStop(1, css(0x22384f));
+  ctx.fillStyle = rg;
+  ctx.fill();
+  ctx.strokeStyle = css(0xe6f6ff, 0.7);
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(6 + i * 4.6, 52);
+    ctx.lineTo(9 + i * 4.6, 44);
+    ctx.stroke();
+  }
+  // shoulders and pale face
+  ctx.beginPath();
+  ctx.ellipse(18, 21, 9, 4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = css(0xc8e2fa);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(19, 13, 5, 6, 0, 0, Math.PI * 2);
+  ctx.fillStyle = css(0xdfe9f2);
+  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = css(0x9fd8ff);
+  ctx.shadowBlur = 5;
+  ctx.fillStyle = css(0x6fd6ff);
+  ctx.fillRect(19, 12, 2, 1.5);
+  ctx.fillRect(22, 12, 1.6, 1.5);
+  ctx.restore();
+  // crown of ice shards
+  ctx.fillStyle = css(0xeaf8ff);
+  for (let i = 0; i < 5; i++) {
+    const x = 13 + i * 3;
+    poly(ctx, [x, 8, x + 1.5, 8 - 4 - (i === 2 ? 4 : i % 2 ? 1 : 2), x + 3, 8]);
+    ctx.fill();
+  }
+  // a shard staff
+  ctx.strokeStyle = css(0xbfe3ff);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(29, 52);
+  ctx.lineTo(31, 14);
+  ctx.stroke();
+  poly(ctx, [31, 6, 34, 13, 31, 17, 28, 13]);
+  ctx.fillStyle = css(0xeaf8ff);
+  ctx.fill();
+}
+
+function bossKingBody(ctx: Ctx): void {
+  // 44 x 58 the Hollow King: black plate, torn royal mantle, a crown above an empty face.
+  poly(ctx, [10, 18, 34, 18, 40, 54, 34, 50, 29, 56, 22, 51, 15, 56, 9, 50, 4, 55]);
+  const mg = ctx.createLinearGradient(0, 18, 0, 56);
+  mg.addColorStop(0, css(0x6a1a1c));
+  mg.addColorStop(1, css(0x200809));
+  ctx.fillStyle = mg;
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(13, 19, 18, 24, 5);
+  const pg = ctx.createLinearGradient(13, 0, 31, 0);
+  pg.addColorStop(0, css(0x4a4d58));
+  pg.addColorStop(1, css(0x15161b));
+  ctx.fillStyle = pg;
+  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = css(PAL.hollow);
+  ctx.shadowBlur = 6;
+  ctx.strokeStyle = css(PAL.hollow, 0.9);
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(22, 24);
+  ctx.lineTo(20, 31);
+  ctx.lineTo(23, 37);
+  ctx.stroke();
+  ctx.restore();
+  for (const [x, w] of [[13, 8], [31, 8]] as const) {
+    ctx.beginPath();
+    ctx.ellipse(x, 21, w, 5.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = css(0x2e3038);
+    ctx.fill();
+  }
+  // helm with a hollow, glowing face
+  ctx.beginPath();
+  ctx.roundRect(15, 5, 14, 15, [6, 6, 3, 3]);
+  ctx.fillStyle = css(0x24262d);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(23, 12, 4, 4.5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = css(0x061513);
+  ctx.fill();
+  ctx.save();
+  ctx.shadowColor = css(PAL.hollow);
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = css(PAL.hollow, 0.85);
+  ctx.beginPath();
+  ctx.arc(23, 12, 1.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // the hollow crown, floating
+  ctx.strokeStyle = css(PAL.gold);
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(15, 3);
+  ctx.lineTo(16, -3 + 4);
+  ctx.lineTo(19, 1);
+  ctx.lineTo(22, -4 + 4);
+  ctx.lineTo(25, 1);
+  ctx.lineTo(28, -3 + 4);
+  ctx.lineTo(29, 3);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function kingBlade(ctx: Ctx): void {
+  // 60 x 12 greatsword; grip at x=6.
+  ctx.fillStyle = css(0x1a1416);
+  ctx.fillRect(0, 4.5, 8, 3);
+  ctx.fillStyle = css(PAL.gold);
+  ctx.fillRect(7, 0.5, 3, 11);
+  poly(ctx, [10, 3, 54, 4, 60, 6, 54, 8, 10, 9]);
+  const g = ctx.createLinearGradient(0, 3, 0, 9);
+  g.addColorStop(0, css(0x9aa0aa));
+  g.addColorStop(1, css(0x2a2d34));
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = css(PAL.hollow, 0.7);
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(12, 6);
+  ctx.lineTo(52, 6);
+  ctx.stroke();
+}
+
+function trapPlate(ctx: Ctx, base: number): void {
+  diamond(ctx, 32, 16, 26, 13);
+  ctx.fillStyle = css(base);
+  ctx.fill();
+  ctx.strokeStyle = css(PAL.void, 0.7);
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function spikes(ctx: Ctx, up: boolean): void {
+  // 64 x 44; the plate sits at y 12..44 (centre 28), spikes rise above it when up.
+  ctx.save();
+  ctx.translate(0, 12);
+  trapPlate(ctx, 0x2a2c33);
+  const holes: [number, number][] = [[22, 12], [32, 8], [42, 12], [22, 20], [32, 16], [42, 20], [32, 24]];
+  for (const [x, y] of holes) {
+    ctx.fillStyle = css(PAL.void, 0.9);
+    ctx.beginPath();
+    ctx.ellipse(x, y, 2.4, 1.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (up) {
+      poly(ctx, [x - 2, y, x, y - 13, x + 2, y]);
+      const g = ctx.createLinearGradient(0, y - 13, 0, y);
+      g.addColorStop(0, '#f2f2f2');
+      g.addColorStop(1, '#5c606a');
+      ctx.fillStyle = g;
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function lootGem(ctx: Ctx): void {
+  // 22 x 26 white faceted relic (tinted by rarity at runtime).
+  poly(ctx, [11, 0, 21, 9, 11, 26, 1, 9]);
+  ctx.fillStyle = '#f4f4f4';
+  ctx.fill();
+  poly(ctx, [11, 0, 21, 9, 11, 12, 1, 9]);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  poly(ctx, [11, 12, 21, 9, 11, 26]);
+  ctx.fillStyle = '#bdbdbd';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 1;
+  poly(ctx, [11, 0, 21, 9, 11, 26, 1, 9]);
+  ctx.stroke();
+}
+
 // ───────────────────────────── FX ─────────────────────────────
 
 function slash(ctx: Ctx): void {
@@ -831,36 +1138,39 @@ function slash(ctx: Ctx): void {
 export function generateTextures(scene: Phaser.Scene): void {
   const rng = new Rng(1337);
 
-  const floorBases = [PAL.stone1, PAL.stone2, 0x1c1e25, 0x20232b, 0x191b22, 0x23262e];
-  floorBases.forEach((b, i) => make(scene, `floor${i}`, 64, 32, (c) => floorTile(c, rng, b)));
-  for (let i = 0; i < 3; i++)
-    make(scene, `wall${i}`, 64, 32 + WALL_H, (c) => block(c, rng, WALL_H, PAL.stone4, 0x23262e, 0x2f333d, 4));
-  make(scene, 'wallLow', 64, 32 + LOW_WALL_H, (c) => block(c, rng, LOW_WALL_H, PAL.stone4, 0x23262e, 0x2f333d, 1));
-  make(scene, 'pillar', 64, 32 + PILLAR_H, (c) => {
-    block(c, rng, PILLAR_H, 0x474c58, 0x2a2d36, 0x383c47, 7);
-    // carved band near the top
-    c.strokeStyle = css(PAL.ember, 0.18);
-    c.lineWidth = 1.2;
-    c.beginPath();
-    c.moveTo(0, 16 + 14);
-    c.lineTo(32, 32 + 14);
-    c.lineTo(64, 16 + 14);
-    c.stroke();
-  });
-  make(scene, 'sigil', 384, 192, sigil);
-  make(scene, 'brazier', 32, 40, (c) => {
-    c.fillStyle = css(0x24262c);
-    poly(c, [12, 40, 20, 40, 18, 18, 14, 18]);
-    c.fill();
-    c.beginPath();
-    c.ellipse(16, 15, 13, 6, 0, 0, Math.PI * 2);
-    c.fillStyle = css(0x3a3d45);
-    c.fill();
-    c.beginPath();
-    c.ellipse(16, 13, 11, 4.5, 0, 0, Math.PI * 2);
-    c.fillStyle = radial(c, 16, 13, 11, [[0, css(PAL.emberHot)], [0.5, css(PAL.ember)], [1, css(PAL.emberDeep)]]);
-    c.fill();
-  });
+  // every floor of the dungeon has its own stone, walls, braziers and floor sigil
+  for (const bio of BIOMES) {
+    const P = bio.palette;
+    const k = (name: string) => `${bio.id}-${name}`;
+    P.floor.forEach((base, i) => make(scene, k(`floor${i}`), 64, 32, (c) => floorTile(c, rng, base)));
+    for (let i = 0; i < 3; i++) make(scene, k(`wall${i}`), 64, 32 + WALL_H, (c) => block(c, rng, WALL_H, P.wallTop, P.wallLeft, P.wallRight, 4));
+    make(scene, k('wallLow'), 64, 32 + LOW_WALL_H, (c) => block(c, rng, LOW_WALL_H, P.wallTop, P.wallLeft, P.wallRight, 1));
+    make(scene, k('pillar'), 64, 32 + PILLAR_H, (c) => {
+      block(c, rng, PILLAR_H, P.pillarTop, shade(P.wallLeft, 1.15), shade(P.wallRight, 1.15), 7);
+      // carved band near the top
+      c.strokeStyle = css(P.accent, 0.2);
+      c.lineWidth = 1.2;
+      c.beginPath();
+      c.moveTo(0, 16 + 14);
+      c.lineTo(32, 32 + 14);
+      c.lineTo(64, 16 + 14);
+      c.stroke();
+    });
+    make(scene, k('sigil'), 384, 192, (c) => sigil(c, P.accent));
+    make(scene, k('brazier'), 32, 40, (c) => {
+      c.fillStyle = css(shade(P.wallLeft, 0.9));
+      poly(c, [12, 40, 20, 40, 18, 18, 14, 18]);
+      c.fill();
+      c.beginPath();
+      c.ellipse(16, 15, 13, 6, 0, 0, Math.PI * 2);
+      c.fillStyle = css(P.wallTop);
+      c.fill();
+      c.beginPath();
+      c.ellipse(16, 13, 11, 4.5, 0, 0, Math.PI * 2);
+      c.fillStyle = radial(c, 16, 13, 11, [[0, css(P.flame[0])], [0.5, css(P.flame[1])], [1, css(P.flame[2])]]);
+      c.fill();
+    });
+  }
   make(scene, 'rubble', 40, 22, (c) => {
     for (let i = 0; i < 7; i++) {
       const x = rng.range(6, 34);
@@ -909,6 +1219,69 @@ export function generateTextures(scene: Phaser.Scene): void {
     c.fillStyle = radial(c, 10, 10, 10, [[0, '#fff2e0'], [0.3, css(0xff6a3a)], [0.7, css(PAL.dangerDeep, 0.8)], [1, css(PAL.dangerDeep, 0)]]);
     c.fillRect(0, 0, 20, 20);
   });
+
+  make(scene, 'houndBody', 46, 32, houndBody);
+  make(scene, 'pyreBody', 36, 46, pyreBody);
+  make(scene, 'bossCryptBody', 60, 66, bossCryptBody);
+  make(scene, 'bossFrostBody', 36, 54, bossFrostBody);
+  make(scene, 'bossKingBody', 44, 58, (c) => {
+    c.translate(0, 4);
+    bossKingBody(c);
+  });
+  make(scene, 'kingBlade', 60, 12, kingBlade);
+  make(scene, 'trapSpikes', 64, 44, (c) => spikes(c, false));
+  make(scene, 'trapSpikesUp', 64, 44, (c) => spikes(c, true));
+  make(scene, 'trapVent', 64, 32, (c) => {
+    trapPlate(c, 0x2a201d);
+    c.strokeStyle = css(0x0e0a09);
+    c.lineWidth = 1.6;
+    for (let i = -2; i <= 2; i++) {
+      c.beginPath();
+      c.moveTo(32 + i * 6 - 8, 16 + i * 3 - 4);
+      c.lineTo(32 + i * 6 + 8, 16 + i * 3 + 4);
+      c.stroke();
+    }
+  });
+  make(scene, 'trapIce', 64, 32, (c) => {
+    diamond(c, 32, 16, 31, 15.5);
+    c.fillStyle = 'rgba(190,230,255,0.42)';
+    c.fill();
+    c.strokeStyle = 'rgba(235,250,255,0.55)';
+    c.lineWidth = 0.8;
+    c.beginPath();
+    c.moveTo(18, 14);
+    c.lineTo(30, 18);
+    c.lineTo(44, 12);
+    c.moveTo(28, 9);
+    c.lineTo(34, 22);
+    c.stroke();
+  });
+  make(scene, 'trapLava', 64, 32, (c) => {
+    diamond(c, 32, 16, 31, 15.5);
+    c.fillStyle = css(0x1a0d0a);
+    c.fill();
+    c.save();
+    diamond(c, 32, 16, 31, 15.5);
+    c.clip();
+    c.shadowColor = '#ff6a2a';
+    c.shadowBlur = 6;
+    c.strokeStyle = '#ff8a3a';
+    c.lineWidth = 2.2;
+    for (let i = 0; i < 4; i++) {
+      c.beginPath();
+      let x = rng.range(10, 30);
+      let y = rng.range(6, 26);
+      c.moveTo(x, y);
+      for (let s = 0; s < 4; s++) {
+        x += rng.range(4, 9);
+        y += rng.range(-4, 4);
+        c.lineTo(x, y);
+      }
+      c.stroke();
+    }
+    c.restore();
+  });
+  make(scene, 'loot', 22, 26, lootGem);
 
   make(scene, 'shadow', 64, 32, (c) => {
     c.save();

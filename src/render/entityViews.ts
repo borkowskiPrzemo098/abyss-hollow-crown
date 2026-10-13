@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { depthOf, worldDirToScreenAngle, worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Simulation } from '../sim/simulation';
+import { RARITY } from '../config/items';
 import { PAL } from './palette';
 import { RES } from './textures';
 import { LAYER } from './worldView';
@@ -23,7 +24,7 @@ interface ObjView {
  */
 export class EntityViews {
   private readonly proj = new Map<number, { body: Phaser.GameObjects.Image; shadow: Phaser.GameObjects.Image }>();
-  private readonly picks = new Map<number, Phaser.GameObjects.Image>();
+  private readonly picks = new Map<number, { img: Phaser.GameObjects.Image; beam: Phaser.GameObjects.Image | null }>();
   private readonly objs = new Map<number, ObjView>();
   private readonly free: Phaser.GameObjects.Image[] = [];
   private readonly seen = new Set<number>();
@@ -74,22 +75,38 @@ export class EntityViews {
     this.seen.clear();
     for (const p of sim.pickups) {
       this.seen.add(p.id);
-      let img = this.picks.get(p.id);
-      if (!img) {
-        img = this.take('mote').setBlendMode(Phaser.BlendModes.ADD).setTint(p.kind === 'heal' ? PAL.gold : PAL.bone);
-        this.picks.set(p.id, img);
+      let v = this.picks.get(p.id);
+      if (!v) {
+        if (p.kind === 'item' && p.item) {
+          // a relic in its rarity colour, with a light beam so it can't be missed
+          const color = RARITY[p.item.rarity].color;
+          const img = this.take('loot').setTint(color);
+          const beam = this.take('light').setBlendMode(Phaser.BlendModes.ADD).setTint(color).setOrigin(0.5, 0.9);
+          v = { img, beam };
+        } else {
+          v = { img: this.take('mote').setBlendMode(Phaser.BlendModes.ADD).setTint(p.kind === 'heal' ? PAL.gold : PAL.bone), beam: null };
+        }
+        this.picks.set(p.id, v);
       }
       const x = lerp(p.px, p.x, alpha);
       const y = lerp(p.py, p.y, alpha);
       const bob = Math.sin(time * 5 + p.id) * 2;
-      img
-        .setPosition(worldToScreenX(x, y), worldToScreenY(x, y) - 8 + bob)
-        .setDepth(depthOf(x, y) + 0.4)
-        .setScale(S * (p.kind === 'heal' ? 1.6 : 0.9) * (1 + Math.sin(time * 8 + p.id) * 0.15));
+      const sx = worldToScreenX(x, y);
+      const sy = worldToScreenY(x, y);
+      if (v.beam) {
+        v.img.setPosition(sx, sy - 14 + bob).setDepth(depthOf(x, y) + 0.4).setScale(S * 0.9).setRotation(Math.sin(time * 2) * 0.15);
+        v.beam.setPosition(sx, sy).setDepth(depthOf(x, y) + 0.3).setScale(0.35 / RES, (2.2 + Math.sin(time * 4) * 0.2) / RES).setAlpha(0.55);
+      } else {
+        v.img
+          .setPosition(sx, sy - 8 + bob)
+          .setDepth(depthOf(x, y) + 0.4)
+          .setScale(S * (p.kind === 'heal' ? 1.6 : 0.9) * (1 + Math.sin(time * 8 + p.id) * 0.15));
+      }
     }
-    for (const [id, img] of this.picks) {
+    for (const [id, v] of this.picks) {
       if (this.seen.has(id)) continue;
-      this.give(img);
+      this.give(v.img);
+      if (v.beam) this.give(v.beam);
       this.picks.delete(id);
     }
 
@@ -140,7 +157,10 @@ export class EntityViews {
       this.give(v.body);
       this.give(v.shadow);
     }
-    for (const img of this.picks.values()) this.give(img);
+    for (const v of this.picks.values()) {
+      this.give(v.img);
+      if (v.beam) this.give(v.beam);
+    }
     for (const v of this.objs.values()) {
       this.give(v.img);
       if (v.glow) this.give(v.glow);
