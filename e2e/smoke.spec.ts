@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { SKILL_UPGRADE_LIST } from '../src/config/skillUpgrades';
 
 /** Evaluates an expression against the running game (`s` = scene, `w` = debug hook) via the ?test hook. */
 async function game<T>(page: Page, expr: string): Promise<T> {
@@ -27,7 +28,12 @@ async function startRun(page: Page, hero: 'warden' | 'wanderer', skill: string) 
   await expect(page.locator('#screen-hero')).toBeVisible();
   await page.locator(`[data-hero="${hero}"]`).click();
   await expect(page.locator('#screen-skill')).toBeVisible();
-  await page.locator(`[data-skill="${skill}"]`).click();
+  // wear only the wanted skill: add it first (the last worn skill cannot be removed), then drop the rest
+  const want = page.locator(`#skill-cards [data-skill="${skill}"]`);
+  if ((await want.getAttribute('aria-pressed')) !== 'true') await want.click();
+  const worn = await page.locator('#skill-cards .sk.is-on').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.skill));
+  for (const id of worn) if (id !== skill) await page.locator(`#skill-cards [data-skill="${id}"]`).click();
+  await page.locator('#btn-start').click();
   await expect(page.locator('#hud')).toBeVisible();
   expect(await game<string>(page, 's.mode')).toBe('playing');
 }
@@ -56,9 +62,24 @@ test('full run: pick hero, explore, fight, level up, descend, die, sanctuary', a
   await expect(page.locator('#hero-cards .card')).toHaveCount(2);
   await page.screenshot({ path: info.outputPath('02-hero-select.png') });
   await page.locator('[data-hero="warden"]').click();
-  await expect(page.locator('#skill-cards .card')).toHaveCount(2);
+  // the loadout screen: ten skills, two open at the start, three slots, one worn
+  await expect(page.locator('#skill-cards .sk')).toHaveCount(10);
+  await expect(page.locator('#skill-cards .sk.is-locked')).toHaveCount(8);
+  await expect(page.locator('#skill-slots .lo-slot')).toHaveCount(3);
+  await expect(page.locator('#skill-slots .lo-slot:not(.is-empty)')).toHaveCount(1);
+  await expect(page.locator('[data-skill="crush"]')).toBeDisabled();
+  await page.locator('#skill-cards [data-skill="charge"]').click();
+  await expect(page.locator('#skill-slots .lo-slot:not(.is-empty)')).toHaveCount(2);
+  await page.locator('#skill-cards [data-skill="charge"]').click();
+  await expect(page.locator('#skill-slots .lo-slot:not(.is-empty)')).toHaveCount(1);
+  await page.locator('#skill-cards [data-skill="sunder"]').click();
+  await expect(page.locator('#skill-slots .lo-slot:not(.is-empty)')).toHaveCount(1);
+  await expect(page.locator('#skill-msg')).toContainText('przynajmniej');
+  await page.locator('#skill-cards [data-skill="charge"]').click();
   await page.screenshot({ path: info.outputPath('03-skill-select.png') });
-  await page.locator('[data-skill="sunder"]').click();
+  await page.locator('#btn-start').click();
+  await expect(page.locator('#btn-skill2')).toBeVisible();
+  await expect(page.locator('#btn-skill3')).toBeHidden();
   await expect(page.locator('#hud')).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: info.outputPath('04-start-room.png') });
@@ -99,7 +120,7 @@ test('full run: pick hero, explore, fight, level up, descend, die, sanctuary', a
   expect(await game<number>(page, 's.sim.enemies.filter((e) => e.hp < e.maxHp).length + s.sim.kills')).toBeGreaterThan(0);
   await page.locator('#btn-skill').dispatchEvent('pointerdown', { pointerId: 8, isPrimary: true });
   await page.waitForTimeout(450);
-  expect(await game<number>(page, 's.sim.hero.skillCd')).toBeGreaterThan(4);
+  expect(await game<number>(page, 's.sim.hero.skills[0].cd')).toBeGreaterThan(4);
 
   // clear the room through the hook and check the doors reopen
   for (let i = 0; i < 10; i++) {
@@ -236,7 +257,7 @@ test('wanderer shoots bolts and the volley fan', async ({ page }) => {
   expect(await game<number>(page, 's.sim.enemies.filter((e) => e.hp < e.maxHp).length + s.sim.kills')).toBeGreaterThan(0);
   await page.keyboard.press('KeyE');
   await page.waitForTimeout(100);
-  expect(await game<number>(page, 's.sim.hero.skillCd')).toBeGreaterThan(3);
+  expect(await game<number>(page, 's.sim.hero.skills[0].cd')).toBeGreaterThan(3);
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
@@ -260,4 +281,210 @@ test('page does not scroll or zoom from touch gestures (CSS guards present)', as
   expect(css.touch).toBe('none');
   expect(css.select).toBe('none');
   expect(css.overflow).toBe('hidden');
+});
+
+test('three skills: the limit holds, locked ones stay shut, the choice survives a reload, all buttons work', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  // earn everything for the Strażnik through the debug hook (the real unlocks are covered by unit tests)
+  await game(page, '(s.services.save.data.progress.warden = { runs: 9, kills: 999, bestFloor: 3, wins: 1 }, 0)');
+  await page.locator('#btn-new').click();
+  await page.locator('[data-hero="warden"]').click();
+  await expect(page.locator('#skill-cards .sk.is-locked')).toHaveCount(0);
+  // the other class's skills are not on this screen at all
+  await expect(page.locator('#skill-cards [data-skill="volley"]')).toHaveCount(0);
+  await page.locator('#skill-cards [data-skill="warcry"]').click();
+  await page.locator('#skill-cards [data-skill="bastion"]').click();
+  await expect(page.locator('#skill-slots .lo-slot:not(.is-empty)')).toHaveCount(3);
+  await page.locator('#skill-cards [data-skill="axe"]').click();
+  await expect(page.locator('#skill-msg')).toContainText('zdejmij');
+  await expect(page.locator('#skill-slots .lo-slot:not(.is-empty)')).toHaveCount(3);
+  await page.screenshot({ path: info.outputPath('loadout-full.png') });
+
+  // the choice is saved: reload the page and look again
+  await page.reload();
+  await page.waitForFunction(() => (window as unknown as { __abyss?: { scene?: { mode?: string } } }).__abyss?.scene?.mode === 'menu');
+  await page.locator('#btn-new').click();
+  await page.locator('[data-hero="warden"]').click();
+  await expect(page.locator('#skill-slots .lo-slot:not(.is-empty)')).toHaveCount(3);
+  await expect(page.locator('#skill-cards .sk.is-on')).toHaveCount(3);
+  expect(await game<string[]>(page, 's.services.save.data.loadout.warden')).toEqual(['sunder', 'warcry', 'bastion']);
+
+  await page.locator('#btn-start').click();
+  await expect(page.locator('#hud')).toBeVisible();
+  expect(await game<string[]>(page, 's.sim.hero.skills.map((x) => x.def.id)')).toEqual(['sunder', 'warcry', 'bastion']);
+
+  // the three buttons fit on screen and do not overlap each other or the dodge button
+  const boxes = await page.locator('.act:visible').evaluateAll((els) =>
+    els.map((e) => {
+      const r = e.getBoundingClientRect();
+      return { id: e.id, x: r.x, y: r.y, w: r.width, h: r.height };
+    }),
+  );
+  expect(boxes.map((b) => b.id).sort()).toEqual(['btn-dodge', 'btn-skill', 'btn-skill2', 'btn-skill3']);
+  const vw = page.viewportSize()!;
+  for (const b of boxes) {
+    expect(b.x).toBeGreaterThanOrEqual(0);
+    expect(b.y).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.w).toBeLessThanOrEqual(vw.width);
+    expect(b.y + b.h).toBeLessThanOrEqual(vw.height);
+    expect(Math.min(b.w, b.h)).toBeGreaterThanOrEqual(60);
+  }
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i]!;
+      const b = boxes[j]!;
+      const overlap = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+      expect(overlap, a.id + ' vs ' + b.id).toBe(false);
+    }
+
+  // each button fires its own skill (touch on phones, keyboard on desktop)
+  const press = async (slot: 1 | 2 | 3) => {
+    if (info.project.name === 'desktop') await page.keyboard.press(slot === 1 ? 'KeyE' : slot === 2 ? 'KeyR' : 'KeyF');
+    else await page.locator(slot === 1 ? '#btn-skill' : '#btn-skill' + slot).tap();
+  };
+  await press(2);
+  await page.waitForTimeout(450);
+  let cds = await game<number[]>(page, 's.sim.hero.skills.map((x) => x.cd)');
+  expect(cds[0]).toBe(0);
+  expect(cds[1]).toBeGreaterThan(5);
+  expect(cds[2]).toBe(0);
+  await press(3);
+  await page.waitForTimeout(300);
+  cds = await game<number[]>(page, 's.sim.hero.skills.map((x) => x.cd)');
+  expect(cds[2]).toBeGreaterThan(5);
+  expect(await game<number>(page, 's.sim.hero.guardT')).toBeGreaterThan(0);
+  await press(1);
+  await page.waitForTimeout(300);
+  cds = await game<number[]>(page, 's.sim.hero.skills.map((x) => x.cd)');
+  expect(cds[0]).toBeGreaterThan(3);
+  await page.screenshot({ path: info.outputPath('three-skills-hud.png') });
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('skill upgrades: offered with exact numbers, applied, listed in the pause sheet, remembered', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  await game(page, '(s.services.save.data.progress.warden = { runs: 9, kills: 999, bestFloor: 3, wins: 1 }, 0)');
+  await startRun(page, 'warden', 'sunder');
+
+  // a chest offers three cards: one stat, two upgrades of the worn skill
+  await game(page, "(s.sim.queueChoice('chest'), 0)");
+  await expect(page.locator('#screen-choice')).toBeVisible();
+  await expect(page.locator('#choice-cards .card')).toHaveCount(3);
+  const up = page.locator('#choice-cards .card-skillup');
+  await expect(up).toHaveCount(2);
+  for (const card of await up.all()) {
+    await expect(card.locator('.up-lines li').first()).toBeVisible();
+    await expect(card.locator('.card-role')).toContainText('Rozłam');
+  }
+  // nothing runs off the screen
+  const width = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, win: window.innerWidth }));
+  expect(width.doc).toBeLessThanOrEqual(width.win);
+  await page.screenshot({ path: info.outputPath('skill-upgrade-cards.png') });
+
+  const taken = await up.first().getAttribute('data-up');
+  await up.first().click();
+  await expect(page.locator('#hud')).toBeVisible();
+  expect(await game<number>(page, `s.sim.hero.skillUpgrades['${taken}']`)).toBe(1);
+  expect(await game<string[]>(page, 's.sim.skillUpgradeLog')).toEqual([taken]);
+
+  // the pause sheet lists it with its level
+  await page.locator('#btn-hero').click();
+  await expect(page.locator('#sheet')).toContainText('Ulepszenia umiejętności');
+  await expect(page.locator('#sheet .sheet-ups').last()).toContainText('1/');
+  await page.screenshot({ path: info.outputPath('skill-upgrade-sheet.png') });
+  await page.keyboard.press('Escape');
+
+  // dying banks it into the codex, and the loadout screen shows the count after a reload
+  await game(page, '(s.sim.hero.hp = 1, s.sim.hero.iframeT = 0, s.sim.hero.hurtT = 0, s.sim.damageHero(99), 0)');
+  await expect(page.locator('#screen-end')).toBeVisible({ timeout: 8000 });
+  expect(await game<string[]>(page, 's.services.save.data.codex')).toEqual([taken]);
+  await page.reload();
+  await page.waitForFunction(() => (window as unknown as { __abyss?: { scene?: { mode?: string } } }).__abyss?.scene?.mode === 'menu');
+  await page.locator('#btn-new').click();
+  await page.locator('[data-hero="warden"]').click();
+  await expect(page.locator('#skill-cards [data-skill="sunder"] .sk-codex')).toContainText('1 / 4');
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('statuses and reactions: named on the cards and in the sheet, drawn on enemies without errors', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  await game(page, '(s.services.save.data.progress.wanderer = { runs: 9, kills: 999, bestFloor: 3, wins: 1 }, 0)');
+  await page.locator('#btn-new').click();
+  await page.locator('[data-hero="wanderer"]').click();
+  // the cards say which reactions a skill takes part in; skills outside every reaction say nothing
+  await expect(page.locator('[data-skill="snipe"] .sk-syn')).toContainText('Burza znaku');
+  await expect(page.locator('[data-skill="snipe"] .sk-syn')).toContainText('Rozbicie');
+  await expect(page.locator('[data-skill="ward"] .sk-syn')).toHaveCount(0);
+  await page.locator('#skill-cards [data-skill="snipe"]').click();
+  await page.locator('#btn-start').click();
+  await expect(page.locator('#hud')).toBeVisible();
+
+  // every kind of status on a small crowd, then let the renderer draw a few frames
+  await game(
+    page,
+    `(() => {
+      const sim = s.sim; const h = sim.hero;
+      const mk = (dx, dy) => { const e = sim.spawnEnemy('brute', h.x + dx, h.y + dy, { instant: true }); e.state = 'stunned'; e.stateT = e.stateDur = 999; return e; };
+      const a = mk(2.5, 0), b = mk(3.5, 1.2), c = mk(2.2, -1.5), d = mk(4.5, -0.5);
+      a.markT = 6; a.markSeq = 1;
+      b.bleedStacks = 3; b.bleedT = 4; b.bleedTick = 0.5;
+      c.burnT = 3; c.burnDps = 4;
+      d.chillT = 3;
+      return 0;
+    })()`,
+  );
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: info.outputPath('statuses-in-play.png') });
+
+  await page.locator('#btn-hero').click();
+  const sheet = page.locator('#sheet');
+  await expect(sheet).toContainText('Reakcje twoich umiejętności');
+  await expect(sheet).toContainText('Burza znaku');
+  await expect(sheet).toContainText('Rozbicie');
+  await expect(sheet).not.toContainText('Rozerwanie'); // no warden skills worn
+  await expect(sheet).toContainText('Krwawienie');
+  await expect(sheet).toContainText('Oznaczenie');
+  await page.screenshot({ path: info.outputPath('statuses-sheet.png') });
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('character menu: every skill with its effect, unlock requirement and upgrades, for both classes', async ({ page }, info) => {
+  const errors = watchErrors(page);
+  await boot(page);
+  await page.locator('#btn-codex').click();
+  await expect(page.locator('#screen-codex')).toBeVisible();
+  // a new player sees all ten skills of the Strażnik, two open and eight locked, each saying how to open it
+  await expect(page.locator('#codex-skills .cx')).toHaveCount(10);
+  await expect(page.locator('#codex-skills .cx.is-locked')).toHaveCount(8);
+  await expect(page.locator('#codex-skills .cx.is-locked .cx-state').first()).toContainText('Zablokowana');
+  await expect(page.locator('#codex-head')).toContainText('2 / 10');
+  // open a locked skill: the requirement with progress, the reactions and every upgrade level are readable
+  const byName = (name: string) => page.locator('#codex-skills .cx').filter({ has: page.locator('.cx-name', { hasText: new RegExp(`^${name}$`) }) });
+  const crush = byName('Miażdżący Cios');
+  await crush.locator('summary').click();
+  await expect(crush.locator('.cx-unlock')).toContainText('Ukończ 2 wyprawy');
+  await expect(crush.locator('.cx-unlock')).toContainText('0 z 2');
+  await expect(crush).toContainText('Reakcje ze statusami');
+  await expect(crush).toContainText('Rozbicie');
+  await expect(crush.locator('.cx-ups > li')).toHaveCount(3);
+  await expect(crush.locator('.cx-levels li').first()).toContainText('Poz. 1');
+  await expect(crush).toContainText('Obrażenia: +25%');
+  await page.screenshot({ path: info.outputPath('codex-warden.png') });
+  // the other class
+  await page.locator('#codex-tabs [data-tab="wanderer"]').click();
+  await expect(page.locator('#codex-skills .cx')).toHaveCount(10);
+  await expect(byName('Gwiezdny Deszcz')).toContainText('Pokonaj 350 wrogów');
+  // all upgrades of both classes are listed somewhere in the menu
+  let total = 0;
+  for (const hero of ['warden', 'wanderer']) {
+    await page.locator(`#codex-tabs [data-tab="${hero}"]`).click();
+    total += await page.locator('#codex-skills .cx-ups > li').count();
+  }
+  expect(total).toBe(SKILL_UPGRADE_LIST.length);
+  await page.locator('#screen-codex [data-back]').click();
+  await expect(page.locator('#screen-title')).toBeVisible();
+  expect(errors, errors.join('\n')).toEqual([]);
 });

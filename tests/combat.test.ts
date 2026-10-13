@@ -152,7 +152,7 @@ describe('active skill: Sunder', () => {
     expect(ev.some((x) => x.type === 'skillCast')).toBe(true);
     expect(ev.some((x) => x.type === 'interrupt' && x.id === e.id)).toBe(true);
     expect(e.state === 'stunned' || e.state === 'dead').toBe(true);
-    expect(h.skillCd).toBeGreaterThan(SKILLS.sunder.cooldown - 0.5);
+    expect(h.skills[0]!.cd).toBeGreaterThan(SKILLS.sunder.cooldown - 0.5);
     const again = run(sim, 0.2, { skill: true });
     expect(again.some((x) => x.type === 'skillCast')).toBe(false);
   });

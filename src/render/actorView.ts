@@ -172,7 +172,7 @@ export class HeroView {
         if (this.swingClock >= 0) this.swingClock += dt;
       }
       if (this.castClock >= 0) {
-        const c = h.skill.id === 'sunder' ? SKILLS.sunder.castTime : 0.12;
+        const c = h.activeSkill?.id === 'sunder' ? SKILLS.sunder.castTime : h.activeSkill?.id === 'crush' ? SKILLS.crush.castTime : 0.12;
         const t = this.castClock;
         if (t < c) {
           weaponA = lerp(sp.rest, -1.75, easeOut(t / c));
@@ -366,6 +366,11 @@ export class EnemyView {
       bodyX = 0;
     } else if (e.burnT > 0 && tint === null) {
       tint = Math.floor(time * 10 + e.id) % 2 ? 0xffb07a : 0xff8a5a;
+    } else if (e.bleedStacks > 0 && tint === null) {
+      // deeper red with more stacks, a slow throb
+      tint = Math.floor(time * 5 + e.id) % 2 ? 0xe8788c : e.bleedStacks > 1 ? 0xb83a56 : 0xc4566c;
+    } else if (e.chillT > 0 && tint === null) {
+      tint = 0xbfe4ff;
     }
     if (e.invulnerable) tint = Math.floor(time * 14) % 2 ? 0xffffff : 0xffe2a0;
     this.flashT = Math.max(0, this.flashT - dt);

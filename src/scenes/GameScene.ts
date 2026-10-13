@@ -5,11 +5,12 @@ import { biomeFor } from '../config/biomes';
 import { BASES, RARITY, SLOT_NAMES, type Item, type Slot } from '../config/items';
 import { HEROES, type HeroId } from '../config/heroes';
 import { RUN, xpToNext, type RankId } from '../config/progression';
-import { SKILLS, type SkillId } from '../config/skills';
-import type { UpgradeId } from '../config/upgrades';
+import { SKILLS, SKILL_RULES, type SkillId } from '../config/skills';
+import { SKILL_UPGRADES } from '../config/skillUpgrades';
+import { SYNERGIES } from '../config/statuses';
 import { screenDirToWorld, worldDirToScreenAngle, worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Controls } from '../input/controls';
-import { addItem, bankRun, buyRank, equip, equippedItems, salvage, unequip, type SaveStore } from '../meta/save';
+import { addItem, bankRun, buyRank, equip, equipSkill, equippedItems, salvage, skillLoadout, unequip, unequipSkill, type SaveStore } from '../meta/save';
 import { computeStats, emptyUpgrades } from '../sim/stats';
 import { InventoryScreen } from '../ui/inventory';
 import { EnemyView, HeroView } from '../render/actorView';
@@ -20,7 +21,7 @@ import { PAL } from '../render/palette';
 import { WorldView } from '../render/worldView';
 import { DungeonDirector } from '../sim/director';
 import { Simulation } from '../sim/simulation';
-import type { HeroBuild, SimEvent } from '../sim/types';
+import type { ChoiceId, HeroBuild, SimEvent } from '../sim/types';
 import type { Hud } from '../ui/hud';
 import { Menus, type MenuActions, type ScreenId } from '../ui/menus';
 import { Minimap } from '../ui/minimap';
@@ -56,6 +57,26 @@ interface RunState {
   depth: number;
   time: number;
 }
+
+/** Sound played when a skill is cast (Rozłam, Szarża, Salwa and Pieczęć keep their own cues). */
+const CAST_CUE: Partial<Record<SkillId, 'cast' | 'barrier' | 'roar' | 'volley' | 'zap' | 'seal' | 'dash' | 'shoot' | 'dodge' | 'frost' | 'ui'>> = {
+  crush: 'cast',
+  bastion: 'barrier',
+  warcry: 'roar',
+  axe: 'volley',
+  hook: 'zap',
+  banner: 'seal',
+  whirl: 'dash',
+  pact: 'cast',
+  snipe: 'shoot',
+  blink: 'dodge',
+  ward: 'barrier',
+  frost: 'frost',
+  sentry: 'seal',
+  mine: 'ui',
+  starfall: 'cast',
+  overload: 'zap',
+};
 
 export class GameScene extends Phaser.Scene {
   mode: Mode = 'menu';
@@ -187,18 +208,41 @@ export class GameScene extends Phaser.Scene {
       pickHero: (id) => {
         click();
         this.pendingHero = id;
-        this.menus.renderSkills(id);
+        this.menus.renderSkills(id, this.services.save.data);
+        this.menus.setLoadoutMessage('');
         this.menus.show('skill');
       },
-      pickSkill: (id) => {
+      toggleSkill: (id) => {
         click();
-        this.startRun(this.pendingHero, id);
+        const save = this.services.save.data;
+        const hero = this.pendingHero;
+        let msg = '';
+        if (save.loadout[hero].includes(id)) {
+          if (unequipSkill(save, hero, id) === 'last') msg = 'Potrzebujesz przynajmniej jednej umiejętności.';
+        } else {
+          const err = equipSkill(save, hero, id);
+          if (err === 'full') msg = `Masz już ${SKILL_RULES.maxSlots} umiejętności — najpierw zdejmij jedną.`;
+          else if (err === 'locked') msg = 'Ta umiejętność jest jeszcze zablokowana.';
+          else if (err) msg = 'Nie można wyposażyć tej umiejętności.';
+        }
+        persist();
+        this.menus.renderSkills(hero, save);
+        this.menus.setLoadoutMessage(msg);
+      },
+      startRun: () => {
+        click();
+        this.startRun(this.pendingHero);
       },
       openInventory: () => {
         click();
         this.invReturn = 'title';
         this.inventory.open(this.services.save.data, this.pendingHero, false);
         this.menus.show('inv');
+      },
+      openCodex: () => {
+        click();
+        this.menus.renderCodex(this.services.save.data, this.pendingHero);
+        this.menus.show('codex');
       },
       openSanctuary: () => {
         click();
@@ -223,7 +267,7 @@ export class GameScene extends Phaser.Scene {
         else if (cur === 'sanct' && this.sanctReturn === 'end') this.menus.show('end');
         else this.toTitle();
       },
-      choose: (id: UpgradeId) => this.choose(id),
+      choose: (id: ChoiceId) => this.choose(id),
       resume: () => this.resumeGame(),
       abandon: () => {
         click();
@@ -265,7 +309,7 @@ export class GameScene extends Phaser.Scene {
 
   /** A quiet dungeon start room behind the menus. */
   private showMenuWorld(): void {
-    const build: HeroBuild = { heroId: 'warden', skillId: 'sunder', ranks: { ...this.services.save.data.ranks }, gear: [] };
+    const build: HeroBuild = { heroId: 'warden', skills: ['sunder'], ranks: { ...this.services.save.data.ranks }, gear: [] };
     const d = generateDungeon(20261013, 1);
     this.sim = new Simulation(d.map, { seed: 1, build });
     this.setupFloor(d, build.heroId);
@@ -277,15 +321,16 @@ export class GameScene extends Phaser.Scene {
     return Number.isFinite(n) ? n >>> 0 : (Math.random() * 2 ** 32) >>> 0;
   }
 
-  startRun(heroId: HeroId, skillId: SkillId): void {
+  startRun(heroId: HeroId): void {
     const { hud, controls, sfx, save } = this.services;
-    const build: HeroBuild = { heroId, skillId, ranks: { ...save.data.ranks }, gear: equippedItems(save.data, heroId) };
+    const skills = skillLoadout(save.data, heroId);
+    const build: HeroBuild = { heroId, skills, ranks: { ...save.data.ranks }, gear: equippedItems(save.data, heroId) };
     const seed = this.seedFromUrl();
     this.run = { build, seed, depth: 1, time: 0 };
     const d = generateDungeon(seed, 1);
     this.sim = new Simulation(d.map, { seed, build });
     this.setupFloor(d, heroId);
-    hud.setSkill(skillId, SKILLS[skillId].name);
+    hud.setSkills(skills.map((id) => ({ id, name: SKILLS[id].name })));
     this.menus.show(null);
     hud.show(true);
     controls.release();
@@ -360,16 +405,18 @@ export class GameScene extends Phaser.Scene {
       this.toTitle();
       return;
     }
-    const gained = bankRun(save.data, {
+    const { gained, unlocked } = bankRun(save.data, {
+      hero: run.build.heroId,
       ash: this.sim.ash,
       won,
       floor: run.depth,
       kills: this.sim.kills,
       keepFraction: RUN.ashKeptOnDeath,
       bonus: RUN.victoryAshBonus,
+      skillUpgrades: this.sim.skillUpgradeLog,
     });
     if (this.saving) void save.save();
-    this.menus.renderEnd({ won, floor: run.depth, kills: this.sim.kills, level: this.sim.hero.level, seconds: run.time, ashKept: gained, loot: [...this.sim.loot] });
+    this.menus.renderEnd({ won, floor: run.depth, kills: this.sim.kills, level: this.sim.hero.level, seconds: run.time, ashKept: gained, loot: [...this.sim.loot], unlocked });
     this.menus.show('end');
     this.run = null;
   }
@@ -456,7 +503,7 @@ export class GameScene extends Phaser.Scene {
     this.menus.show('choice');
   }
 
-  private choose(id: UpgradeId): void {
+  private choose(id: ChoiceId): void {
     if (this.mode !== 'choice' || !this.sim.applyChoice(id)) return;
     this.services.sfx.play('ui');
     if (this.sim.choices.length > 0) {
@@ -492,7 +539,7 @@ export class GameScene extends Phaser.Scene {
       if (this.mode === 'playing') {
         const inp = this.services.controls.poll();
         const w = screenDirToWorld(inp.sx, inp.sy);
-        sim.setInput({ moveX: w.x, moveY: w.y, dodge: inp.dodge, skill: inp.skill });
+        sim.setInput({ moveX: w.x, moveY: w.y, dodge: inp.dodge, skill: inp.skills[0], skill2: inp.skills[1], skill3: inp.skills[2] });
         if (this.run) this.run.time += dt;
       } else {
         sim.setInput({ moveX: 0, moveY: 0, dodge: false, skill: false });
@@ -572,6 +619,10 @@ export class GameScene extends Phaser.Scene {
       if (h.stats.frostShell) chips.push({ id: 'frostShell', label: '', cd: h.frostCd / 10, active: h.frostCd <= 0 });
       if (h.stats.barrierMax > 0) chips.push({ id: 'barrier', label: String(Math.ceil(h.barrier)), cd: 0, active: h.barrier > 0 });
       if (h.stats.frenzy) chips.push({ id: 'frenzy', label: '', cd: 0, active: h.frenzyT > 0 });
+      if (h.guardT > 0) chips.push({ id: 'guard', label: '', cd: h.guardT / SKILLS.bastion.duration, active: true });
+      if (h.pactT > 0) chips.push({ id: 'pact', label: '', cd: h.pactT / SKILLS.pact.duration, active: true });
+      if (h.shield > 0) chips.push({ id: 'shield', label: String(Math.ceil(h.shield)), cd: h.shieldT / SKILLS.ward.duration, active: true });
+      if (h.overloadT > 0) chips.push({ id: 'overload', label: '', cd: h.overloadT / SKILLS.overload.duration, active: true });
       this.services.hud.setEffects(chips);
       this.services.hud.update(
         {
@@ -583,9 +634,11 @@ export class GameScene extends Phaser.Scene {
           ash: sim.ash,
           dodgeCd: h.dodgeCd,
           dodgeMax: h.cls.dodge.cooldown,
-          skillCd: h.skillCd,
-          skillMax: h.skill.cooldown * h.stats.skillCooldownMult,
-          skillBlocked: h.state === 'dodge' || h.state === 'dash' || h.state === 'cast' || h.state === 'dead',
+          skills: h.skills.map((sl) => ({
+            cd: sl.cd,
+            max: sim.skillCooldown(sl.def),
+            blocked: h.state === 'dodge' || h.state === 'dash' || h.state === 'cast' || h.state === 'dead' || h.skillLock > 0,
+          })),
         },
         dt,
       );
@@ -624,8 +677,8 @@ export class GameScene extends Phaser.Scene {
         v?.onHit();
         const p = this.screenOf(ev.x, ev.y);
         const head = v ? v.headY : -48;
-        this.fx.floater(p.x, p.y + head - 6, ev.crit ? `${ev.amount}!` : String(ev.amount), ev.crit ? 'crit' : ev.source === 'burn' ? 'burn' : ev.source === 'chain' ? 'evade' : 'hit');
-        if (ev.source === 'burn') break;
+        this.fx.floater(p.x, p.y + head - 6, ev.crit ? `${ev.amount}!` : String(ev.amount), ev.crit ? 'crit' : ev.source === 'burn' ? 'burn' : ev.source === 'bleed' ? 'bleed' : ev.source === 'chain' || ev.source === 'arc' ? 'evade' : 'hit');
+        if (ev.source === 'burn' || ev.source === 'bleed') break;
         this.fx.sparksAt(p.x, p.y + head * 0.45, ev.crit ? 14 : 6);
         this.fx.boneAt(p.x, p.y + head * 0.45, ev.source === 'skill' ? 6 : 3);
         if (ev.source === 'attack') {
@@ -661,7 +714,67 @@ export class GameScene extends Phaser.Scene {
       case 'skillCast':
         hv.onCast();
         if (ev.skill === 'sunder') sfx.play('cast');
+        else if (CAST_CUE[ev.skill]) sfx.play(CAST_CUE[ev.skill]!);
         break;
+      case 'skillUpgrade': {
+        const u = SKILL_UPGRADES[ev.id];
+        if (u) hud.toast(`<b>${u.name}</b> · ${SKILLS[u.skill].name} ${ev.level}/${u.levels.length}`, 'var(--ember-hot)');
+        sfx.play('levelUp');
+        break;
+      }
+      case 'synergy': {
+        // a reaction between a skill and a status: name it above the enemy and give it its own flourish
+        const p = this.screenOf(ev.x, ev.y);
+        const v = this.enemyViews.get(ev.targetId);
+        const head = v ? v.headY : -48;
+        this.fx.floater(p.x, p.y + head - 28, SYNERGIES[ev.id].name.toUpperCase(), 'evade');
+        if (ev.id === 'rend') {
+          this.fx.ring(p.x, p.y, 1.1, 0xe0647a, 0.3);
+          this.fx.boneAt(p.x, p.y + head * 0.45, 8);
+          sfx.play('crit');
+        } else if (ev.id === 'stoke') {
+          this.fx.ring(p.x, p.y, 1.4, PAL.ember, 0.4);
+          this.fx.flamesAt(p.x, p.y - 8, 16);
+          sfx.play('blast');
+        } else if (ev.id === 'shatter') {
+          this.fx.ring(p.x, p.y, 1.3, 0x9fd8ff, 0.35);
+          this.fx.frostAt(p.x, p.y - 18, 22);
+          sfx.play('frost');
+        } else if (ev.id === 'trap') {
+          this.fx.ring(p.x, p.y, 0.9, PAL.hollow, 0.3);
+          sfx.play('ui');
+        }
+        break;
+      }
+      case 'skillFizzle':
+        this.fx.floater(hv.sx, hv.sy - 62, 'BRAK CELU', 'evade');
+        break;
+      case 'skillFx': {
+        const p = this.screenOf(ev.x, ev.y);
+        if (ev.blast) {
+          this.fx.ring(p.x, p.y, ev.radius, PAL.emberHot, 0.3);
+          this.fx.flamesAt(p.x, p.y - 4, 10);
+          this.fx.shake(0.003, 90);
+          sfx.play('blast');
+          break;
+        }
+        const color = ev.skill === 'frost' ? 0x9fd8ff : ev.skill === 'mine' || ev.skill === 'sentry' || ev.skill === 'ward' || ev.skill === 'blink' ? PAL.hollow : PAL.emberHot;
+        this.fx.ring(p.x, p.y, ev.radius, color, ev.skill === 'whirl' ? 0.22 : 0.4);
+        if (ev.skill === 'frost') this.fx.frostAt(p.x, p.y - 18, 22);
+        else if (ev.skill === 'mine' || ev.skill === 'starfall') {
+          this.fx.flamesAt(p.x, p.y - 4, 16);
+          this.fx.debrisAt(p.x, p.y - 4, 8);
+          this.fx.shake(0.006, 140);
+          sfx.play('blast');
+        } else if (ev.skill === 'blink') {
+          const q = this.screenOf(ev.x2 ?? ev.x, ev.y2 ?? ev.y);
+          this.fx.dustAt(q.x, q.y - 2, 8);
+          this.fx.dustAt(p.x, p.y - 2, 8);
+          this.fx.ring(q.x, q.y, ev.radius, PAL.hollow, 0.3);
+        } else if (ev.skill === 'whirl') this.fx.sparksAt(p.x, p.y - 22, 6);
+        else if (ev.skill === 'warcry' || ev.skill === 'hook') this.fx.dustAt(p.x, p.y, 14);
+        break;
+      }
       case 'skillImpact': {
         const p = this.screenOf(ev.x, ev.y);
         this.fx.ring(p.x, p.y, ev.radius, PAL.ember, 0.42);

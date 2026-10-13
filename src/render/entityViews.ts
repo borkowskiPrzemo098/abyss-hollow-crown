@@ -51,6 +51,7 @@ export class EntityViews {
         const enemy = p.team === 'enemy';
         const body = this.take(enemy ? 'ember' : 'shard').setBlendMode(Phaser.BlendModes.ADD);
         if (enemy) body.setScale(S * 1.25);
+        else if (p.r > 0.2) body.setScale((S * p.r) / 0.2); // heavy skill shots (axe, piercing shot) fly bigger
         const shadow = this.take('shadow').setScale(S * (enemy ? 0.32 : 0.18)).setAlpha(0.7);
         v = { body, shadow };
         this.proj.set(p.id, v);

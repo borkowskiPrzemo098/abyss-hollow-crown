@@ -30,7 +30,7 @@ async function boot(): Promise<void> {
   const app = el('app');
   const hud = new Hud();
   const sfx = new Sfx();
-  const controls = new Controls(el('stick-zone'), el('stick'), el('stick-knob'), el('btn-dodge'), el('btn-skill'));
+  const controls = new Controls(el('stick-zone'), el('stick'), el('stick-knob'), el('btn-dodge'), [el('btn-skill'), el('btn-skill2'), el('btn-skill3')]);
   const services: Services = { hud, controls, sfx, save, dpr };
 
   // Any gesture anywhere may unlock / resume audio (iOS needs a gesture after every interruption).

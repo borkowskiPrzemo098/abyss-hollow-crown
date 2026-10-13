@@ -32,3 +32,13 @@ bossowie bazują na sylwetkach zwykłych wrogów w większej skali.
 - więcej typów komnat: wyzwanie (fala za lepszą nagrodę), pułapkowy korytarz, sklep
 - wrogowie wspierający (tarcza dla innych), elitarne warianty z modyfikatorami
 - samouczek pierwszej komnaty, finalna oprawa i muzyka
+
+## ✅ v0.4 / etap 1 — pula umiejętności
+20 umiejętności (po 10 na klasę), 3 sloty, odblokowywanie postępem klasy, ekran wyposażenia, zapis v3 z migracją, 62 nowe testy.
+Do sprawdzenia na telefonie: rozmieszczenie trzech przycisków pod kciukiem i czytelność ekranu wyposażenia.
+
+## ✅ v0.4 / etap 2 — ulepszenia umiejętności
+71 ulepszeń dla 20 umiejętności, architektura oparta o konfigurację, karty w ofercie, arkusz pauzy, kodeks w zapisie v4 z migracją.
+
+## ✅ v0.4 / etap 3 — statusy i synergie
+5 statusów, 5 reakcji, limity CC i odporności bossów, 48 nowych testów logiki + test w przeglądarce.

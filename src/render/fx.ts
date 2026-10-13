@@ -23,7 +23,7 @@ interface Timed {
   sy: number;
 }
 
-export type FloaterKind = 'hit' | 'crit' | 'hurt' | 'evade' | 'heal' | 'level' | 'burn';
+export type FloaterKind = 'hit' | 'crit' | 'hurt' | 'evade' | 'heal' | 'level' | 'burn' | 'bleed';
 
 /**
  * Pooled combat feedback. Nothing here allocates per frame: floaters, slashes,
@@ -144,7 +144,7 @@ export class Fx {
 
   floater(x: number, y: number, label: string, kind: FloaterKind): void {
     const f = this.floaters.find((o) => o.life <= 0) ?? this.floaters[0]!;
-    const color = { crit: '#ffb85c', hurt: '#ff6457', evade: '#9df0e6', heal: '#f2d27a', level: '#ffd98a', hit: '#f3ead6', burn: '#ff9a4a' }[kind];
+    const color = { crit: '#ffb85c', hurt: '#ff6457', evade: '#9df0e6', heal: '#f2d27a', level: '#ffd98a', hit: '#f3ead6', burn: '#ff9a4a', bleed: '#e0647a' }[kind];
     const size = kind === 'crit' ? 28 : kind === 'level' ? 24 : kind === 'evade' || kind === 'burn' ? 16 : 20;
     f.text
       .setText(label)

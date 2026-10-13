@@ -14,10 +14,8 @@ export interface HudState {
   ash: number;
   dodgeCd: number;
   dodgeMax: number;
-  skillCd: number;
-  skillMax: number;
-  /** Skill can't be used right now for a reason other than cooldown (dodging, casting). */
-  skillBlocked: boolean;
+  /** One entry per worn skill. `blocked`: can't be used right now for a reason other than cooldown (dodging, casting). */
+  skills: { cd: number; max: number; blocked: boolean }[];
 }
 
 export const $ = <T extends HTMLElement>(sel: string): T => {
@@ -83,10 +81,10 @@ export class Hud {
   private readonly hurt = $('#hurt');
   private readonly fade = $('#fade');
   private readonly fadeText = $('#fade-text');
-  private readonly skillIcon = document.getElementById('skill-icon') as unknown as SVGUseElement;
-  private readonly skillBtn = $('#btn-skill');
+  private readonly skillIcons = ['skill-icon', 'skill2-icon', 'skill3-icon'].map((id) => document.getElementById(id) as unknown as SVGUseElement);
+  private readonly skillBtns = [$('#btn-skill'), $('#btn-skill2'), $('#btn-skill3')];
   private readonly dodge = new CooldownButton($('#btn-dodge'), $('#dodge-cd'));
-  private readonly skill = new CooldownButton($('#btn-skill'), $('#skill-cd'));
+  private readonly skills = [new CooldownButton($('#btn-skill'), $('#skill-cd')), new CooldownButton($('#btn-skill2'), $('#skill2-cd')), new CooldownButton($('#btn-skill3'), $('#skill3-cd'))];
   private readonly bossBar = $('#boss-bar');
   private readonly bossName = $('#boss-name');
   private readonly bossTitle = $('#boss-title');
@@ -111,9 +109,15 @@ export class Hud {
     this.hud.hidden = !show;
   }
 
-  setSkill(id: SkillId, name: string): void {
-    this.skillIcon.setAttribute('href', `#i-${id}`);
-    this.skillBtn.setAttribute('aria-label', `Umiejętność: ${name}`);
+  /** Shows one button per worn skill; unused slots stay hidden. */
+  setSkills(worn: { id: SkillId; name: string }[]): void {
+    this.skillBtns.forEach((btn, i) => {
+      const sk = worn[i];
+      btn.hidden = !sk;
+      if (!sk) return;
+      this.skillIcons[i]!.setAttribute('href', `#i-${sk.id}`);
+      btn.setAttribute('aria-label', `Umiejętność ${i + 1}: ${sk.name}`);
+    });
   }
 
   setWhere(text: string): void {
@@ -230,7 +234,7 @@ export class Hud {
       L.ash = s.ash;
     }
     this.dodge.set(s.dodgeCd, s.dodgeMax, false);
-    this.skill.set(s.skillCd, s.skillMax, s.skillBlocked);
+    s.skills.forEach((sk, i) => this.skills[i]?.set(sk.cd, sk.max, sk.blocked));
     if (this.bannerTimer > 0) {
       this.bannerTimer -= dt;
       if (this.bannerTimer <= 0) this.banner.classList.remove('is-on');

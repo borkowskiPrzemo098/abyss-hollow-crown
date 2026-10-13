@@ -1,7 +1,10 @@
 import type { HeroId } from '../config/heroes';
 import { BASES, DROPS, SLOTS, type Item, type Slot } from '../config/items';
 import { NO_RANKS, RANKS, type MetaRanks, type RankId } from '../config/progression';
+import { isSkillUpgradeId } from '../config/skillUpgrades';
+import { NO_PROGRESS, type HeroProgress, type SkillId } from '../config/skills';
 import { isItem, salvageValue } from '../sim/loot';
+import { canAdd, newlyUnlocked, sanitizeLoadout, type LoadoutError } from './loadout';
 
 /**
  * Persistent progress, stored in IndexedDB.
@@ -10,7 +13,7 @@ import { isItem, salvageValue } from '../sim/loot';
  *  - A failed or corrupted read never overwrites good data: the game keeps
  *    running on defaults and only replaces the save after an explicit choice.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 4;
 
 export type Loadout = Record<Slot, string | null>;
 
@@ -22,6 +25,15 @@ export interface SaveData {
   stats: { runs: number; wins: number; bestFloor: number; kills: number };
   /** Every item owned (equipped ones included), and what each hero wears. */
   inventory: { items: Item[]; equipped: Record<HeroId, Loadout> };
+  /** Lasting progress of each class; it unlocks skills. */
+  progress: Record<HeroId, HeroProgress>;
+  /** Skills each class wears into a run (1–3, all unlocked and of that class). */
+  loadout: Record<HeroId, SkillId[]>;
+  /**
+   * Skill upgrades found at least once, in any run. Upgrades themselves belong to a run (like the stat upgrades,
+   * which are not saved either); this list only remembers which ones the player has seen.
+   */
+  codex: string[];
 }
 
 const emptyLoadout = (): Loadout => ({ weapon: null, helmet: null, armor: null, amulet: null, ring: null });
@@ -34,6 +46,9 @@ export function defaultSave(): SaveData {
     settings: { volume: 0.7, muted: false },
     stats: { runs: 0, wins: 0, bestFloor: 0, kills: 0 },
     inventory: { items: [], equipped: { warden: emptyLoadout(), wanderer: emptyLoadout() } },
+    progress: { warden: { ...NO_PROGRESS }, wanderer: { ...NO_PROGRESS } },
+    loadout: { warden: sanitizeLoadout('warden', [], NO_PROGRESS), wanderer: sanitizeLoadout('wanderer', [], NO_PROGRESS) },
+    codex: [],
   };
 }
 
@@ -86,7 +101,46 @@ export function parseSave(raw: unknown): SaveData | null {
       }
     }
   }
+  // v3: per-class progress and skill loadout. Older saves start from zero progress and the starter skill.
+  const prog = r.progress as Record<string, Record<string, unknown> | undefined> | undefined;
+  for (const hero of ['warden', 'wanderer'] as const) {
+    const src = prog && typeof prog === 'object' ? prog[hero] : undefined;
+    if (src && typeof src === 'object') {
+      out.progress[hero] = {
+        runs: Math.floor(num(src.runs, 0, 1e9) ?? 0),
+        kills: Math.floor(num(src.kills, 0, 1e12) ?? 0),
+        bestFloor: Math.floor(num(src.bestFloor, 0, 1e6) ?? 0),
+        wins: Math.floor(num(src.wins, 0, 1e9) ?? 0),
+      };
+    }
+    const lo = (r.loadout as Record<string, unknown> | undefined)?.[hero];
+    out.loadout[hero] = sanitizeLoadout(hero, lo, out.progress[hero]);
+  }
+  // v4: the codex. Anything unknown or repeated is dropped; older saves start with an empty one.
+  if (Array.isArray(r.codex)) out.codex = [...new Set(r.codex.filter(isSkillUpgradeId))];
   return out;
+}
+
+/** Skills a hero wears into the next run. */
+export function skillLoadout(save: SaveData, hero: HeroId): SkillId[] {
+  return [...save.loadout[hero]];
+}
+
+/** Puts a skill into the hero's next free slot. Refuses locked, foreign, repeated or a fourth skill. */
+export function equipSkill(save: SaveData, hero: HeroId, id: SkillId): LoadoutError | null {
+  const err = canAdd(hero, save.loadout[hero], id, save.progress[hero]);
+  if (err) return err;
+  save.loadout[hero].push(id);
+  return null;
+}
+
+/** Takes a skill off. The last remaining skill stays: a run needs at least one. */
+export function unequipSkill(save: SaveData, hero: HeroId, id: SkillId): 'last' | null {
+  const cur = save.loadout[hero];
+  if (!cur.includes(id)) return null;
+  if (cur.length <= 1) return 'last';
+  save.loadout[hero] = cur.filter((s) => s !== id);
+  return null;
 }
 
 /** Items a hero currently wears. */
@@ -165,14 +219,24 @@ export function buyRank(save: SaveData, id: RankId): boolean {
 }
 
 /** Banks a finished run into the save. */
-export function bankRun(save: SaveData, run: { ash: number; won: boolean; floor: number; kills: number; keepFraction: number; bonus: number }): number {
+export function bankRun(
+  save: SaveData,
+  run: { hero: HeroId; ash: number; won: boolean; floor: number; kills: number; keepFraction: number; bonus: number; skillUpgrades?: readonly string[] },
+): { gained: number; unlocked: SkillId[] } {
+  const before = { ...save.progress[run.hero] };
   const gained = Math.floor(run.ash * (run.won ? 1 : run.keepFraction)) + (run.won ? run.bonus : 0);
   save.ash += gained;
   save.stats.runs += 1;
   if (run.won) save.stats.wins += 1;
   save.stats.bestFloor = Math.max(save.stats.bestFloor, run.floor);
   save.stats.kills += run.kills;
-  return gained;
+  const p = save.progress[run.hero];
+  p.runs += 1;
+  p.kills += run.kills;
+  p.bestFloor = Math.max(p.bestFloor, run.floor);
+  if (run.won) p.wins += 1;
+  for (const id of run.skillUpgrades ?? []) if (isSkillUpgradeId(id) && !save.codex.includes(id)) save.codex.push(id);
+  return { gained, unlocked: newlyUnlocked(run.hero, before, p) };
 }
 
 export type LoadResult = { status: 'ok' | 'new'; data: SaveData } | { status: 'corrupted' | 'unavailable'; data: SaveData };

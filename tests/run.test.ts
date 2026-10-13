@@ -18,7 +18,7 @@ import { idleBot, playerBot } from './bots';
 function expedition(hero: HeroId, seed: number, bot: (s: Simulation) => InputIntent) {
   const skill = hero === 'warden' ? 'sunder' : 'volley';
   let d = generateDungeon(seed, 1);
-  const sim = new Simulation(d.map, { seed, build: { heroId: hero, skillId: skill, ranks: { ...NO_RANKS }, gear: [] } });
+  const sim = new Simulation(d.map, { seed, build: { heroId: hero, skills: [skill], ranks: { ...NO_RANKS }, gear: [] } });
   let floorsCleared = 0;
   let prev = { dodge: false, skill: false };
   const step = () => {

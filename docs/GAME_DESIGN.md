@@ -85,3 +85,33 @@ Pułapki ranią także wrogów. Boss w połowie zdrowia ryczy (chwilowo odporny)
 ## Jeszcze nie ma (kolejne etapy)
 Relikty, ulepszanie przedmiotów, wrogowie wspierający, talenty, Kuźnia i Archiwum w bazie, samouczek,
 finalna grafika i muzyka.
+
+## Umiejętności (v0.4, etap 1 rozbudowy)
+Każda klasa ma 10 umiejętności (`src/config/skills.ts`), gracz nosi do 3 naraz (przyciski 1–3, klawisze E/R/F).
+Dwie startowe na klasę są dostępne od początku, pozostałe odblokowują się postępem **danej klasy** (wyprawy, zabici wrogowie,
+najgłębszy poziom, wygrane) — wymagania w `unlock` każdej umiejętności. Wyposażenie jest zapisane per klasa (zapis v3)
+i sprawdzane przy wczytaniu (`src/meta/loadout.ts`). Po każdym rzucie wszystkie sloty blokują się na 0,2 s.
+Umiejętności celowane (Miażdżący Cios, Strzał Przeszywający, Gwiezdny Deszcz) nie odpalają się bez wroga i nie zużywają odnowienia.
+Jeszcze nie ma: ulepszeń zmieniających działanie umiejętności i synergii (osobne etapy).
+
+## Ulepszenia umiejętności (v0.4, etap 2)
+Każda z 20 umiejętności ma 2–4 własne ulepszenia (71 w sumie, `src/config/skillUpgrades.ts`), po 1–2 poziomy.
+Zdobywa się je w trakcie wyprawy, obok zwykłych ulepszeń statystyk: awans daje 1 kartę ulepszenia umiejętności i 2 karty statystyk,
+skrzynia 2 karty umiejętności i 1 statystykę (tylko dla noszonych umiejętności, najpierw różnych). Karty ulepszeń są turkusowe
+i pokazują dokładne liczby („+20% → +40%"). Ulepszenie to dane: lista poziomów, a każdy poziom to *suma* modyfikatorów
+(obszar, pociski, przebijanie, wybuch, płonąca ziemia, podpalenie, spowolnienie, ogłuszenie, egzekucja, kontrola, skrócenie
+odnowienia, fala po trafieniu, echo, wybuch na końcu, leczenie, kradzież życia…). Silnik zna każdy modyfikator raz.
+Limity: tylko tyle poziomów, ile wpisano; suma modyfikatorów jednej umiejętności jest ograniczona (`MOD_CAPS`); odnowienie
+nigdy poniżej 30% bazowego. Stan ulepszeń należy do wyprawy (tak jak zwykłe ulepszenia); do zapisu (v4) trafia **kodeks**:
+które ulepszenia gracz już znalazł (widać go na ekranie wyposażenia). Synergii między umiejętnościami jeszcze nie ma.
+
+## Statusy i reakcje (v0.4, etap 3)
+Pięć statusów na wrogach (`src/config/statuses.ts`, wszystkie liczby tam): **podpalenie** (3 s, nie sumuje się), **krwawienie**
+(4 s, do 3 stosów), **spowolnienie**, **zamrożenie/ogłuszenie** (twarde CC) i **oznaczenie** (6 s, maks. 4 naraz).
+Twarde CC ma górny limit (3 s, boss 0,8 s), nie da się go przedłużać w nieskończoność i po zakończeniu wróg jest odporny
+(0,8 s, boss 5 s). Boss: krwawi na pół, spowolnienie tylko 15%.
+Reakcje: **Rozerwanie** (Szarża, Rzut Toporem, Wir Ostrzy → krwawienie; Rozłam i Miażdżący Cios zużywają stosy),
+**Rozdmuchanie** (Okrzyk Wojny roznosi podpalenie, maks. 4 naraz, ograniczone pokoleniami), **Burza znaku** (Strzał Przeszywający
+i Gwiezdny Deszcz oznaczają; Salwa, Strzał, Wartownik, Przeciążenie wyzwalają łuk błyskawicy: 0,6 s na znak, wspólny budżet
+6/s), **Rozbicie** (Miażdżący Cios, Strzał, Mina ×1,6 na zamrożonym i lód pęka), **Pułapka z uniku** (ulepszenie „Mina w Przewrocie”).
+Obrażenia z reakcji nie wywołują kolejnych reakcji.

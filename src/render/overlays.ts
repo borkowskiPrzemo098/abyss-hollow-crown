@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { SKILLS } from '../config/skills';
 import { blocksSight, tileAt, type ArenaMap } from '../world/arena';
 import { worldToScreenX, worldToScreenY } from '../core/iso';
 import type { Simulation } from '../sim/simulation';
@@ -57,15 +58,51 @@ export class Overlays {
     t.clear();
     this.map = sim.map;
 
-    // the hero's Seal of the Void: an ember ring with a slow pulse; fades in its last second
+    // hero-made zones: Seal of the Void, banner, sentry, mines, falling stars
     for (const z of sim.zones) {
       const fade = Math.min(1, z.life / 0.8);
       const pulse = 0.5 + 0.5 * Math.sin(time * 6);
-      this.circle(g, z.x, z.y, z.r, PAL.ember, (0.08 + 0.05 * pulse) * fade, 0.75 * fade);
-      this.circle(g, z.x, z.y, z.r * 0.62, PAL.emberHot, 0, 0.35 * fade);
-      for (let k = 0; k < 6; k++) {
-        const a = time * 0.8 + (k * Math.PI) / 3;
-        this.arc(g, z.x, z.y, z.r * 0.82, a, a + 0.32, PAL.emberHot, 0.8 * fade, 2.2);
+      const sx = worldToScreenX(z.x, z.y);
+      const sy = worldToScreenY(z.x, z.y);
+      if (z.kind === 'seal') {
+        // an ember ring with a slow pulse; fades in its last second
+        this.circle(g, z.x, z.y, z.r, PAL.ember, (0.08 + 0.05 * pulse) * fade, 0.75 * fade);
+        this.circle(g, z.x, z.y, z.r * 0.62, PAL.emberHot, 0, 0.35 * fade);
+        for (let k = 0; k < 6; k++) {
+          const a = time * 0.8 + (k * Math.PI) / 3;
+          this.arc(g, z.x, z.y, z.r * 0.82, a, a + 0.32, PAL.emberHot, 0.8 * fade, 2.2);
+        }
+      } else if (z.kind === 'banner') {
+        this.circle(g, z.x, z.y, z.r, PAL.gold, (0.06 + 0.04 * pulse) * fade, 0.7 * fade);
+        t.lineStyle(3, PAL.bone, fade);
+        t.beginPath();
+        t.moveTo(sx, sy);
+        t.lineTo(sx, sy - 36);
+        t.strokePath();
+        t.fillStyle(PAL.gold, 0.9 * fade);
+        t.fillTriangle(sx, sy - 36, sx + 18, sy - 29 + Math.sin(time * 5) * 2, sx, sy - 22);
+      } else if (z.kind === 'sentry') {
+        this.circle(g, z.x, z.y, z.r, PAL.hollow, 0, 0.12 * fade);
+        this.circle(g, z.x, z.y, 0.38, PAL.hollow, 0.5 * fade, 0.9 * fade);
+        t.fillStyle(PAL.hollow, 0.9 * fade);
+        t.fillTriangle(sx, sy - 32, sx - 7, sy - 17, sx + 7, sy - 17);
+        t.fillStyle(PAL.hollowDeep, 0.95 * fade);
+        t.fillTriangle(sx - 7, sy - 17, sx + 7, sy - 17, sx, sy - 4);
+      } else if (z.kind === 'mine') {
+        const armed = z.tickT <= 0;
+        this.circle(g, z.x, z.y, 0.3, PAL.hollow, armed ? 0.5 : 0.2, 0.9 * fade);
+        this.circle(g, z.x, z.y, 0.46 + 0.06 * pulse, PAL.hollow, 0, armed ? 0.8 * fade : 0.3);
+      } else if (z.kind === 'ground') {
+        // burning ground (ember) or frozen ground (ice) left by a skill upgrade
+        const ice = z.skill === 'blink' || z.skill === 'frost';
+        const col = ice ? 0x9fd8ff : PAL.ember;
+        this.circle(g, z.x, z.y, z.r, col, (0.08 + 0.06 * pulse) * fade, 0.55 * fade);
+        this.circle(g, z.x, z.y, z.r * 0.55, ice ? 0xdff4ff : PAL.emberHot, 0.06 * fade, 0);
+      } else {
+        // a marked spot: the fill reaches the rim exactly when the star lands
+        const p = Math.min(1, 1 - z.tickT / Math.max(0.01, SKILLS.starfall.delay));
+        this.circle(g, z.x, z.y, z.r, PAL.emberHot, 0.06, 0.55);
+        this.circle(g, z.x, z.y, z.r * Math.max(0.05, p), PAL.ember, 0.2 + p * 0.15, 0);
       }
     }
 
@@ -89,6 +126,23 @@ export class Overlays {
         const p = 1 - Math.max(0, e.stateT) / e.stateDur;
         this.circle(g, e.x, e.y, 0.55 + 0.25 * p, PAL.hollow, 0.08 + 0.12 * p, 0.6);
         this.arc(g, e.x, e.y, 0.75, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2, PAL.hollow, 0.9);
+      }
+    }
+    // marked enemies carry a turquoise reticle that blinks faster as the mark runs out
+    for (const e of sim.enemies) {
+      if (e.markT <= 0 || e.state === 'dead') continue;
+      const mx = worldToScreenX(e.x, e.y);
+      const my = worldToScreenY(e.x, e.y) - (30 + e.r * 42);
+      const fade = e.markT < 1 ? 0.45 + 0.55 * (Math.floor(time * 10) % 2) : 1;
+      const r = 8 + Math.sin(time * 6 + e.id) * 1.2;
+      t.lineStyle(2, PAL.hollow, 0.95 * fade);
+      t.strokeCircle(mx, my, r);
+      for (let k = 0; k < 4; k++) {
+        const a = (k * Math.PI) / 2 + Math.PI / 4;
+        t.beginPath();
+        t.moveTo(mx + Math.cos(a) * (r + 2), my + Math.sin(a) * (r + 2));
+        t.lineTo(mx + Math.cos(a) * (r + 7), my + Math.sin(a) * (r + 7));
+        t.strokePath();
       }
     }
     for (let i = this.flashes.length - 1; i >= 0; i--) {

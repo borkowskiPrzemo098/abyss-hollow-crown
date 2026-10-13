@@ -214,7 +214,7 @@ describe('bosses', () => {
   it('every floor ends with its own boss, whose death opens the stairs and drops loot', () => {
     for (const depth of [1, 2, 3]) {
       const d = generateDungeon(30 + depth, depth);
-      const sim = new Simulation(d.map, { seed: 3, build: { heroId: 'warden', skillId: 'sunder', ranks: { ...NO_RANKS }, gear: [] } });
+      const sim = new Simulation(d.map, { seed: 3, build: { heroId: 'warden', skills: ['sunder'], ranks: { ...NO_RANKS }, gear: [] } });
       const dir = new DungeonDirector(sim, d);
       sim.director = dir;
       const lair = d.rooms[d.exitRoom]!;

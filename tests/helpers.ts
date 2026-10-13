@@ -20,13 +20,13 @@ export function openRoom(extraRows?: Record<number, string>) {
   return parseArena(rows);
 }
 
-export function build(heroId: HeroId = 'warden', skillId?: SkillId): HeroBuild {
-  return { heroId, skillId: skillId ?? (heroId === 'warden' ? 'sunder' : 'volley'), ranks: { ...NO_RANKS }, gear: [] };
+export function build(heroId: HeroId = 'warden', skillId?: SkillId, skills?: SkillId[]): HeroBuild {
+  return { heroId, skills: skills ?? [skillId ?? (heroId === 'warden' ? 'sunder' : 'volley')], ranks: { ...NO_RANKS }, gear: [] };
 }
 
 /** A sandbox simulation; armour is zeroed by default so damage numbers are exact. */
-export function sandbox(map: ArenaMap = openRoom(), opts: { seed?: number; hero?: HeroId; skill?: SkillId; armor?: boolean } = {}): Simulation {
-  const sim = new Simulation(map, { seed: opts.seed ?? 1, build: build(opts.hero, opts.skill) });
+export function sandbox(map: ArenaMap = openRoom(), opts: { seed?: number; hero?: HeroId; skill?: SkillId; skills?: SkillId[]; armor?: boolean } = {}): Simulation {
+  const sim = new Simulation(map, { seed: opts.seed ?? 1, build: build(opts.hero, opts.skill, opts.skills) });
   if (!opts.armor) sim.hero.stats.armor = 0;
   return sim;
 }
@@ -38,7 +38,7 @@ export function run(sim: Simulation, seconds: number, intent: Partial<InputInten
   const events: SimEvent[] = [];
   const steps = Math.round(seconds / SIM_DT);
   for (let i = 0; i < steps; i++) {
-    sim.setInput({ ...idle, ...intent, dodge: i === 0 && !!intent.dodge, skill: i === 0 && !!intent.skill });
+    sim.setInput({ ...idle, ...intent, dodge: i === 0 && !!intent.dodge, skill: i === 0 && !!intent.skill, skill2: i === 0 && !!intent.skill2, skill3: i === 0 && !!intent.skill3 });
     sim.step(SIM_DT);
     events.push(...sim.drainEvents());
     autoChoose(sim);

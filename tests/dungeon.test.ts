@@ -87,7 +87,7 @@ describe('encounters', () => {
 
 function dungeonRun(seed = 7) {
   const d = generateDungeon(seed, 1);
-  const sim = new Simulation(d.map, { seed, build: { heroId: 'warden', skillId: 'sunder', ranks: { ...NO_RANKS }, gear: [] } });
+  const sim = new Simulation(d.map, { seed, build: { heroId: 'warden', skills: ['sunder'], ranks: { ...NO_RANKS }, gear: [] } });
   const director = new DungeonDirector(sim, d);
   sim.director = director;
   return { d, sim, director };

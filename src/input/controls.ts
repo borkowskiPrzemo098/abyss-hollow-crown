@@ -10,7 +10,8 @@ export interface PolledInput {
   sx: number;
   sy: number;
   dodge: boolean;
-  skill: boolean;
+  /** Skill slots 1–3. */
+  skills: [boolean, boolean, boolean];
 }
 
 const MOVE_KEYS: Record<string, [number, number]> = {
@@ -24,7 +25,8 @@ const MOVE_KEYS: Record<string, [number, number]> = {
   ArrowRight: [1, 0],
 };
 const DODGE_KEYS = new Set(['Space', 'ShiftLeft', 'ShiftRight', 'KeyK']);
-const SKILL_KEYS = new Set(['KeyE', 'KeyQ', 'KeyJ']);
+/** One key set per skill slot (E / R / F, with J / L / U for a left-hand layout). */
+const SKILL_KEYS: ReadonlyArray<ReadonlySet<string>> = [new Set(['KeyE', 'KeyQ', 'KeyJ']), new Set(['KeyR', 'KeyL']), new Set(['KeyF', 'KeyU'])];
 const PAUSE_KEYS = new Set(['Escape', 'KeyP']);
 const SHEET_KEYS = new Set(['KeyC', 'Tab']);
 
@@ -42,7 +44,7 @@ export class Controls {
   private vy = 0;
   private readonly held = new Set<string>();
   private dodgeQueued = false;
-  private skillQueued = false;
+  private readonly skillQueued: [boolean, boolean, boolean] = [false, false, false];
   private readonly cleanups: (() => void)[] = [];
 
   constructor(
@@ -50,14 +52,14 @@ export class Controls {
     private readonly stick: HTMLElement,
     private readonly knob: HTMLElement,
     dodgeBtn: HTMLElement,
-    skillBtn: HTMLElement,
+    skillBtns: readonly HTMLElement[],
   ) {
     this.listen(zone, 'pointerdown', (e) => this.stickDown(e as PointerEvent));
     this.listen(zone, 'pointermove', (e) => this.stickMove(e as PointerEvent));
     this.listen(zone, 'pointerup', (e) => this.stickUp(e as PointerEvent));
     this.listen(zone, 'pointercancel', (e) => this.stickUp(e as PointerEvent));
     this.bindButton(dodgeBtn, () => (this.dodgeQueued = true));
-    this.bindButton(skillBtn, () => (this.skillQueued = true));
+    skillBtns.forEach((btn, i) => this.bindButton(btn, () => (this.skillQueued[i] = true)));
     this.listen(window, 'keydown', (e) => this.keyDown(e as KeyboardEvent));
     this.listen(window, 'keyup', (e) => this.held.delete((e as KeyboardEvent).code));
     this.listen(window, 'blur', () => this.release());
@@ -152,10 +154,12 @@ export class Controls {
       return;
     }
     if (!this.enabled) return;
-    if (MOVE_KEYS[e.code] || DODGE_KEYS.has(e.code) || SKILL_KEYS.has(e.code)) e.preventDefault();
+    if (MOVE_KEYS[e.code] || DODGE_KEYS.has(e.code) || SKILL_KEYS.some((k) => k.has(e.code))) e.preventDefault();
     if (e.repeat) return;
     if (DODGE_KEYS.has(e.code)) this.dodgeQueued = true;
-    else if (SKILL_KEYS.has(e.code)) this.skillQueued = true;
+    else SKILL_KEYS.forEach((k, i) => {
+      if (k.has(e.code)) this.skillQueued[i] = true;
+    });
     this.held.add(e.code);
   }
 
@@ -164,7 +168,8 @@ export class Controls {
     this.held.clear();
     this.stickId = null;
     this.vx = this.vy = 0;
-    this.dodgeQueued = this.skillQueued = false;
+    this.dodgeQueued = false;
+    this.skillQueued.fill(false);
     this.restStick();
   }
 
@@ -185,8 +190,9 @@ export class Controls {
       sx = kx / l;
       sy = ky / l;
     }
-    const out: PolledInput = { sx, sy, dodge: this.dodgeQueued, skill: this.skillQueued };
-    this.dodgeQueued = this.skillQueued = false;
+    const out: PolledInput = { sx, sy, dodge: this.dodgeQueued, skills: [...this.skillQueued] };
+    this.dodgeQueued = false;
+    this.skillQueued.fill(false);
     return out;
   }
 

@@ -46,7 +46,7 @@ describe('xp, levels and upgrade choices', () => {
     expect(sim.applyChoice(notOffered)).toBe(false);
     expect(sim.choices).toHaveLength(1);
     expect(sim.applyChoice(opts[0]!)).toBe(true);
-    expect(sim.hero.upgrades[opts[0]!]).toBe(1);
+    expect(sim.hero.upgrades[opts[0] as UpgradeId]).toBe(1);
     expect(sim.choices).toHaveLength(0);
   });
 
@@ -63,7 +63,10 @@ describe('xp, levels and upgrade choices', () => {
     const sim = sandbox(openRoom(), { hero: 'warden' });
     for (const id of Object.keys(UPGRADES) as UpgradeId[]) if (id !== 'feast') sim.hero.upgrades[id] = UPGRADES[id].maxStacks;
     sim.queueChoice('level');
-    expect(sim.choices[0]!.options).toEqual(['feast']);
+    // the stat cards are exactly what is left; anything else on offer is an upgrade of a worn skill
+    const offered = sim.choices[0]!.options;
+    expect(offered.filter((id) => id in UPGRADES)).toEqual(['feast']);
+    expect(offered.filter((id) => !(id in UPGRADES)).every((id) => id.startsWith('sunder.'))).toBe(true);
     const w = sandbox(openRoom(), { hero: 'wanderer' });
     for (let i = 0; i < 40; i++) w.queueChoice('chest');
     expect(w.choices.flatMap((c) => c.options)).not.toContain('wideArc');
@@ -196,8 +199,8 @@ describe('save data', () => {
 
   it('banks part of the ash on death and all of it (plus a bonus) on victory', () => {
     const s = defaultSave();
-    expect(bankRun(s, { ash: 100, won: false, floor: 2, kills: 30, keepFraction: 0.6, bonus: 40 })).toBe(60);
-    expect(bankRun(s, { ash: 100, won: true, floor: 3, kills: 50, keepFraction: 0.6, bonus: 40 })).toBe(140);
+    expect(bankRun(s, { hero: 'warden', ash: 100, won: false, floor: 2, kills: 30, keepFraction: 0.6, bonus: 40 }).gained).toBe(60);
+    expect(bankRun(s, { hero: 'warden', ash: 100, won: true, floor: 3, kills: 50, keepFraction: 0.6, bonus: 40 }).gained).toBe(140);
     expect(s.ash).toBe(200);
     expect(s.stats).toEqual({ runs: 2, wins: 1, bestFloor: 3, kills: 80 });
   });
