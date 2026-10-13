@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "abyss-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--port", "4930", "--strictPort"],
+      "port": 4930
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07080a" />
+    <meta name="description" content="ABYSS: The Hollow Crown — mroczny izometryczny action roguelite na telefon." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ABYSS" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <title>ABYSS: The Hollow Crown</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="game"></div>
+      <div id="vignette" aria-hidden="true"></div>
+      <div id="hurt" aria-hidden="true"></div>
+
+      <div id="hud" hidden>
+        <div class="hud-top">
+          <div class="vitals">
+            <div id="hp" class="hp" role="meter" aria-label="Zdrowie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+              <div id="hp-ghost" class="hp-ghost"></div>
+              <div id="hp-fill" class="hp-fill"></div>
+              <span id="hp-text" class="hp-text">100</span>
+            </div>
+            <p class="wave"><span class="wave-label">Fala</span> <b id="wave-num">—</b> <span class="wave-sep">·</span> <span id="wave-left">cisza</span></p>
+          </div>
+          <button id="btn-pause" class="icon-btn" type="button" aria-label="Pauza">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14" /></svg>
+          </button>
+        </div>
+
+        <div id="banner" class="banner" aria-live="polite">
+          <p id="banner-title" class="banner-title"></p>
+          <p id="banner-sub" class="banner-sub"></p>
+        </div>
+
+        <div id="stick-zone" class="stick-zone" aria-hidden="true"></div>
+        <div id="stick" class="stick" aria-hidden="true"><div id="stick-knob" class="stick-knob"></div></div>
+
+        <div class="actions">
+          <button id="btn-skill" class="act act-skill is-ready" type="button" aria-label="Umiejętność: Rozłam">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.5v10.5M9 5.5h6M12 13l-1.6 2.6M12 13l1.6 2.6" />
+              <path d="M2.5 20l3.5-1.6 2.2 1.8 2.6-2.4 2.4 2.4 2.6-2.4 2.2 1.8 3.5-1.6" />
+            </svg>
+            <span id="skill-cd" class="cd"></span>
+            <kbd class="key">E</kbd>
+          </button>
+          <button id="btn-dodge" class="act act-dodge is-ready" type="button" aria-label="Unik">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 17.5c2.2-6.4 7.4-9.6 15-9" />
+              <path d="M15.5 4.5l4 4-4 4" />
+              <path d="M3 11.5h3.5M5 7.5h3" />
+            </svg>
+            <span id="dodge-cd" class="cd"></span>
+            <kbd class="key">Spacja</kbd>
+          </button>
+        </div>
+      </div>
+
+      <section id="screen-title" class="screen screen-title" aria-labelledby="title-h">
+        <div class="title-block">
+          <h1 id="title-h" class="title"><span class="title-main">Abyss</span><span class="title-sub">The Hollow Crown</span></h1>
+          <p class="lore">Korona leży pusta od stu lat. Coś na dnie Otchłani wciąż jej szuka — i nie przestaje wspinać się ku światłu.</p>
+          <button id="btn-start" class="btn btn-primary" type="button">Zejdź w Otchłań</button>
+          <dl class="how how-touch">
+            <div><dt>Lewy kciuk</dt><dd>ruch</dd></div>
+            <div><dt>Prawy kciuk</dt><dd>unik i Rozłam</dd></div>
+            <div><dt>Atak</dt><dd>automatyczny — ty wybierasz pozycję</dd></div>
+          </dl>
+          <dl class="how how-keys">
+            <div><dt>WASD</dt><dd>ruch</dd></div>
+            <div><dt>Spacja</dt><dd>unik</dd></div>
+            <div><dt>E</dt><dd>Rozłam</dd></div>
+            <div><dt>Esc</dt><dd>pauza</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section id="screen-pause" class="screen screen-panel" aria-labelledby="pause-h" hidden>
+        <div class="panel">
+          <h2 id="pause-h" class="panel-title">Pauza</h2>
+          <p class="panel-note">Czerwone pola na ziemi pokazują, gdzie za chwilę uderzy wróg. Wyjdź z nich albo przeturlaj się przez cios.</p>
+          <div class="panel-actions">
+            <button id="btn-resume" class="btn btn-primary" type="button">Wznów</button>
+            <button id="btn-restart" class="btn btn-ghost" type="button">Zacznij arenę od nowa</button>
+          </div>
+          <div class="settings">
+            <button id="btn-mute" class="btn btn-toggle" type="button" aria-pressed="false"><span class="label">Dźwięk: włączony</span></button>
+            <label class="slider"><span>Głośność</span><input id="volume" type="range" min="0" max="100" step="5" value="70" /></label>
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-death" class="screen screen-panel screen-death" aria-labelledby="death-h" hidden>
+        <div class="panel">
+          <h2 id="death-h" class="panel-title death-title">Poległeś</h2>
+          <p class="panel-note">Otchłań zabiera ciało. Pamięć walki zostaje z tobą.</p>
+          <dl class="stats">
+            <div><dt>Fala</dt><dd id="stat-wave">0</dd></div>
+            <div><dt>Pokonani</dt><dd id="stat-kills">0</dd></div>
+            <div><dt>Czas</dt><dd id="stat-time">0:00</dd></div>
+          </dl>
+          <div class="panel-actions">
+            <button id="btn-retry" class="btn btn-primary" type="button">Zejdź ponownie</button>
+          </div>
+        </div>
+      </section>
+
+      <div id="fatal" class="fatal" hidden><p></p></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
